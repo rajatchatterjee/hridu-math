@@ -1564,6 +1564,19 @@ const MAZE_COL = {
   moon: { floor: '#3A3F5C', wall: '#9AA0B4', top: '#C3C8D6' },
   castle: { floor: '#6E58B2', wall: '#E2D4FA', top: '#FFFFFF' },
 };
+// Every level needs X items collected before it can finish ("artifacts").
+// Scrolling levels get a target from how many collectibles will appear.
+const QUOTA_MODES = ['run', 'fly', 'dive', 'space'];
+function artifactNeed(L) {
+  if (!QUOTA_MODES.includes(L.mode)) return 0;
+  if (L.need) return L.need;
+  const avgGap = (L.gap[0] + L.gap[1]) / 2, spawns = (L.length - W) / (avgGap * L.speed);
+  if (L.mode === 'run') return Math.max(6, Math.round(spawns * 0.65 * 2 * 0.55));
+  const w = L.obs, tot = Object.values(w).reduce((a, b) => a + b, 0);
+  const per = ((w.ring || 0) + ((w.star || 0) + (w.pearl || 0) + (w.fuel || 0)) * 3) / tot;
+  return Math.max(6, Math.round(spawns * per * 0.45));
+}
+function artifactName(L) { return L.mode === 'run' ? ({ carrot: 'carrots', banana: 'bananas', mango: 'mangoes', star: 'stars' }[L.fruit] || 'treats') : L.mode === 'dive' ? 'pearls & rings' : L.mode === 'space' ? 'fuel stars & rings' : 'rings & stars'; }
 const vehicleOf = L => L.vehicle || (L.mode === 'dive' ? 'dolphin' : L.mode === 'space' ? 'rocket' : 'plane');
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
@@ -1574,6 +1587,7 @@ class Play {
     this.dist = 0; this.hearts = 3; this.inv = 0; this.score = 0; this.objs = []; this.parts = []; this.floats = [];
     this.nextSpawn = 700; this.nextIsland = 900; this.countdown = 2.4; this.menu = null; this.sel = 0; this.rescued = 0; this.rescuedList = [];
     this.boost = 0; this.boostCd = 0; this.wind = 0; this.windTarget = 0; this.windT = 3; this.shake = 0; this.tipT = 7; this.finished = false; this.endT = 0;
+    this.got = 0; this.need = artifactNeed(L); this.short = false; this.edgeT = 0; this.gatesRight = 0;
     this.midDone = false; this.caught = 0; this.gatesDone = 0; this.gatesSpawned = 0; this.gate = null; this.nextGate = 500; this.items = []; this.spawnT = 1.2; this.mq = null; this.orbT = 1.5; this.lane = 1;
     this.friendQueue = shuffle((L.friends || []).slice());
     if (m === 'run') this.p = { x: 330, y: GROUND, vy: 0, ground: true, duck: false, ph: 0, buffer: 0 };
@@ -1586,10 +1600,10 @@ class Play {
   progress() {
     const L = this.L, m = L.mode;
     if (m === 'rescue') return this.rescued / L.goal;
-    if (m === 'gates') return this.gatesDone / L.goal;
+    if (m === 'gates') return this.gatesRight / L.goal;
     if (m === 'catch') return this.caught / L.goal;
     if (m === 'maze') return this.mz.got / this.mz.items.length;
-    return clamp(this.dist / L.length, 0, 1);
+    return clamp(Math.min(this.dist / L.length, this.need ? (this.got / this.need) * 0.999 + 0.0005 : 1), 0, 1);
   }
   autoPause() { if (!this.menu && !this.finished) this.openMenu('pause'); }
   openMenu(kind) { this.menu = kind; this.sel = 0; releaseAll(); }
@@ -1675,10 +1689,10 @@ class Play {
   updScroll(dt) {
     const L = this.L, p = this.p, sp = this.speed, m = L.mode;
     this.dist += sp * dt;
-    const ending = L.length && this.dist > L.length - W;
+    const ending = L.length && this.dist > L.length - W && this.got >= this.need;
     if (!ending && L.obs && this.dist >= this.nextSpawn) { const extra = this.spawn() || 0; this.nextSpawn = this.dist + rand(L.gap[0], L.gap[1]) * L.speed + extra; }
     if (m === 'rescue' && this.dist >= this.nextIsland) { this.spawnIsland(); this.nextIsland = this.dist + rand(L.islandGap ? L.islandGap[0] : 4.2, L.islandGap ? L.islandGap[1] : 5.6) * L.speed; }
-    if (m === 'gates' && !this.gate && this.gatesSpawned < L.goal && this.dist >= this.nextGate) this.spawnGate();
+    if (m === 'gates' && !this.gate && this.gatesRight < L.goal && this.dist >= this.nextGate) this.spawnGate();
     if (m === 'run') {
       p.ph += dt * sp / 34;
       if (!p.ground) { p.vy += 2400 * dt; if (held.down) p.vy += 2600 * dt; p.y += p.vy * dt; if (p.y >= GROUND) { p.y = GROUND; p.vy = 0; p.ground = true; if (p.buffer > 0) { p.buffer = 0; this.tryJump(); } } }
@@ -1692,19 +1706,23 @@ class Play {
       p.vy += (target - p.vy) * Math.min(1, dt * 9);
       p.y += (p.vy + this.wind) * dt + Math.sin(T * 2) * 0.15;
       p.y = clamp(p.y, 110, m === 'rescue' ? 552 : m === 'dive' ? 600 : 590);
+      // the top and bottom edges are dangerous: lingering there costs a heart
+      const atEdge = p.y < 158 || (m !== 'rescue' && p.y > 568);
+      if (atEdge) { this.edgeT += dt; if (this.edgeT > 0.45) { const top = p.y < 300; this.hit(); this.edgeT = 0; p.vy = top ? 420 : -420; p.y += top ? 30 : -30; this.addFloat(p.x + 40, top ? 230 : 470, 'Stay off the edge!', '#FFE88A'); } }
+      else this.edgeT = 0;
       p.tilt = clamp(p.vy / 1600, -0.28, 0.28);
     }
     const hb = this.hitbox();
     for (const o of this.objs) {
       if (o.vx) o.wx -= o.vx * dt;
-      if (o.t === 'asteroid') { o.y += o.vy * dt; if (o.y < 120 || o.y > 600) o.vy *= -1; o.rot += o.vr * dt; }
+      if (o.t === 'asteroid') { o.y += o.vy * dt; if (o.y < 150 || o.y > 580) o.vy *= -1; o.rot += o.vr * dt; }
       if (o.t === 'snowball') { o.y += o.vy * dt; }
       const x = o.wx - this.dist;
       if (o.done) continue;
       if (o.t === 'gate') { if (x <= p.x + 10) this.resolveGate(o); continue; }
-      if (o.t === 'fruit') { if (Math.hypot(x - (p.x + 10), o.y - (p.y - 90)) < 75) { o.done = true; this.score++; SFX.coin(); this.sparkle(x, o.y, '#FFD84D'); } continue; }
-      if (o.t === 'star' || o.t === 'pearl' || o.t === 'fuel') { if (this.hitsCircles(x, o.y, 24)) { o.done = true; this.score++; SFX.coin(); this.sparkle(x, o.y); } continue; }
-      if (o.t === 'ring') { if (Math.abs(x - p.x) < 26 && Math.abs(o.y - p.y) < 72) { o.done = true; this.score += 3; SFX.pick(); this.sparkle(x, o.y, '#FFC21A'); this.addFloat(x, o.y - 80, '+3'); } continue; }
+      if (o.t === 'fruit') { if (Math.hypot(x - (p.x + 10), o.y - (p.y - 90)) < 75) { o.done = true; this.score++; this.got++; SFX.coin(); this.sparkle(x, o.y, '#FFD84D'); } continue; }
+      if (o.t === 'star' || o.t === 'pearl' || o.t === 'fuel') { if (this.hitsCircles(x, o.y, 24)) { o.done = true; this.score++; this.got++; SFX.coin(); this.sparkle(x, o.y); } continue; }
+      if (o.t === 'ring') { if (Math.abs(x - p.x) < 26 && Math.abs(o.y - p.y) < 72) { o.done = true; this.score += 3; this.got++; SFX.pick(); this.sparkle(x, o.y, '#FFC21A'); this.addFloat(x, o.y - 80, '+3'); } continue; }
       if (o.t === 'island') {
         if (!o.got && Math.hypot(x - (p.x + 6), (GROUND - 40) - (p.y + 70)) < 95) {
           o.got = true; this.rescued++; this.rescuedList.push(o.friend); if (this.friendQueue[0] === o.friend) this.friendQueue.shift(); this.score += 5; SFX.rescue(); this.sparkle(x, GROUND - 60, '#FFFFFF'); this.addFloat(x, GROUND - 160, 'Saved ' + FRIEND_NAMES[o.friend].split(' ')[0] + '!', '#FFFFFF');
@@ -1724,7 +1742,10 @@ class Play {
       }
     }
     this.objs = this.objs.filter(o => o.wx - this.dist > -300);
-    if (L.length && this.dist >= L.length) { this.finished = true; SFX.win(); }
+    if (L.length && this.dist >= L.length) {
+      if (this.got >= this.need) { this.finished = true; SFX.win(); }
+      else if (!this.short) { this.short = true; Voice.say(`Not yet! Collect ${this.need - this.got} more ${artifactName(L)} to finish!`, 'hoot'); }
+    }
   }
   addRunObstacle(t, x, hang) {
     const G = { log: [74, 54], rock: [62, 46], cactus: [52, 86], iceblock: [66, 58], crate: [64, 60] };
@@ -1748,14 +1769,16 @@ class Play {
       if (Math.random() < 0.65) { const fx = x + this.L.speed * 0.8 + extra, high = Math.random() < 0.4; const cnt = ri(1, 3); for (let i = 0; i < cnt; i++) this.objs.push({ t: 'fruit', wx: fx + i * 60, y: high ? GROUND - 250 : GROUND - 110, kind: L.fruit }); }
       return extra;
     }
-    const lo = 130, hi = m === 'rescue' ? 500 : 580;
+    const lo = 160, hi = m === 'rescue' ? 500 : 560;
+    // about a third of obstacles come right at the height he is flying
+    const aimY = (a, b) => Math.random() < 0.35 ? clamp(this.p.y + rand(-25, 25), a, b) : rand(a, b);
     if (t === 'ring') this.objs.push({ t, wx: x, y: rand(lo + 30, hi - 20) });
     else if (t === 'star' || t === 'pearl' || t === 'fuel') { const y = rand(lo, hi), cnt = ri(2, 4); for (let i = 0; i < cnt; i++) this.objs.push({ t, wx: x + i * 70, y: clamp(y + Math.sin(i) * 30, lo, hi) }); }
-    else if (t === 'bird' || t === 'gull' || t === 'eagle') this.objs.push({ t: 'bird', wx: x, y0: rand(lo, hi), amp: L.n >= 4 ? rand(20, 60) : 0, ph: rand(0, 6), vx: rand(50, 130), bad: true, gull: t === 'gull', eagle: t === 'eagle' });
-    else if (t === 'thunder') this.objs.push({ t, wx: x + 60, y: rand(170, hi - 40), bad: true });
-    else if (t === 'jelly') this.objs.push({ t, wx: x, y0: rand(lo + 30, hi - 30), amp: rand(30, 70), ph: rand(0, 6), bad: true });
-    else if (t === 'puffer') this.objs.push({ t, wx: x, y: rand(lo, hi), vx: rand(20, 70), bad: true });
-    else if (t === 'asteroid') this.objs.push({ t, wx: x + 40, y: rand(lo, hi), r: rand(26, 46), vx: rand(30, 150), vy: rand(-40, 40), rot: 0, vr: rand(-1.5, 1.5), seed: Math.random() * 10, bad: true });
+    else if (t === 'bird' || t === 'gull' || t === 'eagle') this.objs.push({ t: 'bird', wx: x, y0: aimY(lo, hi), amp: L.n >= 4 ? rand(20, 60) : 0, ph: rand(0, 6), vx: rand(50, 130), bad: true, gull: t === 'gull', eagle: t === 'eagle' });
+    else if (t === 'thunder') this.objs.push({ t, wx: x + 60, y: aimY(180, hi - 30), bad: true });
+    else if (t === 'jelly') this.objs.push({ t, wx: x, y0: aimY(lo + 20, hi - 20), amp: rand(30, 70), ph: rand(0, 6), bad: true });
+    else if (t === 'puffer') this.objs.push({ t, wx: x, y: aimY(lo, hi), vx: rand(20, 70), bad: true });
+    else if (t === 'asteroid') this.objs.push({ t, wx: x + 40, y: aimY(lo, hi), r: rand(26, 46), vx: rand(30, 150), vy: rand(-40, 40), rot: 0, vr: rand(-1.5, 1.5), seed: Math.random() * 10, bad: true });
     else if (t === 'snowball') this.objs.push({ t, wx: x + 200, y: rand(40, 260), vx: rand(80, 160), vy: rand(70, 130), bad: true });
     return 0;
   }
@@ -1773,10 +1796,10 @@ class Play {
     const L = this.L, q = g.q, p = this.p;
     g.done = true; g.chosen = this.lane; this.gate = null; this.gatesDone++;
     const ok = q.opts[this.lane] === q.ans;
-    if (ok) { this.score += 3; SFX.pick(); this.sparkle(p.x + 60, p.y, '#FFC21A'); this.addFloat(p.x + 60, p.y - 70, 'Correct! +3', '#FFFFFF'); Voice.say(pick(['Correct!', 'Yes!', 'Great maths!', 'Super!']), 'hoot'); }
+    if (ok) { this.gatesRight++; this.score += 3; SFX.pick(); this.sparkle(p.x + 60, p.y, '#FFC21A'); this.addFloat(p.x + 60, p.y - 70, 'Correct! +3', '#FFFFFF'); Voice.say(pick(['Correct!', 'Yes!', 'Great maths!', 'Super!']), 'hoot'); }
     else { this.inv = 0; this.hit(); this.addFloat(p.x + 140, p.y - 70, 'Not that one!', '#FFE88A'); Voice.say('Oops! Not that one.', 'hoot'); }
     this.nextGate = this.dist + (L.gateGap || 1.2) * L.speed;
-    if (this.gatesDone >= L.goal && this.hearts > 0) { this.finished = true; SFX.win(); }
+    if (this.gatesRight >= L.goal && this.hearts > 0) { this.finished = true; SFX.win(); }
   }
 
   /* ---------- catch ---------- */
@@ -1907,8 +1930,9 @@ class Play {
         ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3;
         for (let i = 0; i < 16; i++) { const x = wrapX(i * 83 - this.dist * 0.4, W), y = wrapX(i * 131 + T * this.wind * 2, H); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + Math.sign(this.wind) * 40); ctx.stroke(); }
       }
+      if (m !== 'run' && m !== 'gates') this.drawEdges();
       for (const o of this.objs) { if (o.done && o.t !== 'island' && o.t !== 'gate') continue; this.drawObj(o, o.wx - this.dist); }
-      if (L.length) { const fx = L.length - this.dist + p.x; if (fx < W + 100 && fx > -100) this.drawFinish(fx); }
+      if (L.length && this.got >= this.need) { const fx = L.length - this.dist + p.x; if (fx < W + 100 && fx > -100) this.drawFinish(fx); }
       if (!blink) {
         const v = vehicleOf(L);
         if (m === 'run') drawRider(L.mount, p.x, p.y, p.ph, p.duck, { cheer: this.finished, worried: this.inv > 0 });
@@ -1983,6 +2007,21 @@ class Play {
       if (L.enemy === 'crab') drawCrab(ex, ey, sc); else if (L.enemy === 'snowman') drawSnowman(ex, ey + ts * 0.1, sc); else if (L.enemy === 'moonbug') drawMoonbug(ex, ey, sc); else drawBat(ex, ey, sc);
     }
     if (!blink) { const pl = z.pl; const [px, py] = C(pl.x + pl.dx * pl.t, pl.y + pl.dy * pl.t); drawHridu(px, py - ts * 0.16, ts / 108, { cheer: this.finished, worried: this.inv > 0 }); }
+  }
+  // hazards along the top and bottom so hugging an edge doesn't work
+  drawEdges() {
+    const L = this.L, m = L.mode, near = this.edgeT > 0;
+    for (let i = 0; i < 16; i++) {
+      const x = wrapX(i * 90 - this.dist * 0.95, W + 90) - 45;
+      if (m === 'dive') { ctx.save(); ctx.translate(x, 104); ctx.scale(0.75, 0.75); drawJelly(0, 0); ctx.restore(); }
+      else if (m === 'space') drawAsteroid(x, 118, 24, x * 0.01, i);
+      else { circle(x, 96, 34, '#4B5268'); circle(x + 30, 112, 26, '#5B6378'); if ((T * 4 + i) % 6 < 0.4) { ctx.fillStyle = '#FFD84D'; ctx.beginPath(); ctx.moveTo(x, 126); ctx.lineTo(x - 8, 146); ctx.lineTo(x + 2, 144); ctx.lineTo(x - 4, 160); ctx.lineTo(x + 10, 138); ctx.closePath(); ctx.fill(); } }
+      if (m === 'rescue') continue;
+      if (m === 'dive') { circle(x, 640, 20, '#3D2A55'); ctx.strokeStyle = '#3D2A55'; ctx.lineWidth = 3; for (let k = 0; k < 10; k++) { const a = Math.PI + k * Math.PI / 9; line(x, 640, x + Math.cos(a) * 34, 640 + Math.sin(a) * 34, '#3D2A55', 3); } }
+      else if (m === 'space') drawAsteroid(x, 640, 26, -x * 0.01, i + 3);
+      else { ctx.fillStyle = '#2E5E3A'; ctx.beginPath(); ctx.moveTo(x - 40, H); ctx.lineTo(x - 22, 612); ctx.lineTo(x - 6, 650); ctx.lineTo(x + 10, 600); ctx.lineTo(x + 26, 648); ctx.lineTo(x + 46, H); ctx.closePath(); ctx.fill(); }
+    }
+    if (near) { ctx.globalAlpha = 0.25 + 0.2 * Math.sin(T * 20); ctx.fillStyle = '#E4572E'; ctx.fillRect(0, this.p.y < 300 ? 0 : 560, W, 160); ctx.globalAlpha = 1; }
   }
   drawRope() {
     const p = this.p; let near = false;
@@ -2065,6 +2104,14 @@ class Play {
     for (let i = 0; i < 3; i++) drawHeart(W - 300 + i * 40, 56, 15, i < this.hearts ? '#E4572E' : '#D5D9E3');
     drawStar(W - 150, 53, 17, '#FFC21A', '#E09A00'); text(String(this.score), W - 126, 54, 28, INK, 'left', 700);
     if (usingTouch) { circle(W - 56, 128, 34, 'rgba(255,255,255,0.9)'); fillRR(W - 68, 112, 8, 32, 3, INK); fillRR(W - 52, 112, 8, 32, 3, INK); }
+    // collect-to-finish counter
+    if (this.need) {
+      const met = this.got >= this.need, txt = `${Math.min(this.got, this.need)} / ${this.need}`;
+      fillRR(30, 92, 210, 56, 24, met ? '#2E9C5B' : 'rgba(255,255,255,0.95)');
+      if (L.mode === 'run') this.drawFruit(L.fruit, 62, 120); else if (L.mode === 'dive') drawPearl(62, 120); else drawStar(62, 120, 17, '#FFC21A', '#E09A00');
+      text(txt, 150, 121, 28, met ? '#FFFFFF' : INK, 'center', 700);
+      if (this.short && !met) { const msg = `Collect ${this.need - this.got} more ${artifactName(L)} to finish!`; ctx.font = font(26, 700); const w = ctx.measureText(msg).width + 50; fillRR(W / 2 - w / 2, 190, w, 56, 24, 'rgba(27,42,74,0.9)'); text(msg, W / 2, 219, 26, '#FFE88A', 'center', 700); }
+    }
     // the sum to solve (number gates / math catch)
     const qq = m === 'gates' ? (this.gate && this.gate.q) : (L.mathCatch ? this.mq : null);
     if (qq) { const s2 = `${qq.prompt} = ?`; ctx.font = font(52, 700); const w = ctx.measureText(s2).width + 70; fillRR(W / 2 - w / 2, 94, w, 76, 30, '#FFC21A'); text(s2, W / 2, 133, 52, INK, 'center', 700); }
@@ -2081,11 +2128,11 @@ class Play {
       const f = clamp(this.progress(), 0, 1), bx = W / 2 - 260;
       fillRR(bx, H - 44, 520, 16, 8, 'rgba(255,255,255,0.7)'); fillRR(bx, H - 44, 520 * f, 16, 8, '#2E9C5B');
       drawHridu(bx + 520 * f, H - 58, 0.45, { body: false });
-      if (m === 'gates' || m === 'catch') text(`${m === 'gates' ? this.gatesDone : this.caught} / ${L.goal}`, bx + 560, H - 36, 22, '#FFFFFF', 'left', 700);
+      if (m === 'gates' || m === 'catch') text(`${m === 'gates' ? this.gatesRight : this.caught} / ${L.goal}`, bx + 560, H - 36, 22, '#FFFFFF', 'left', 700);
       else for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? INK : '#FFFFFF'; ctx.fillRect(bx + 528 + j * 9, H - 50 + i * 9, 9, 9); }
     }
     if (this.tipT > 0 && !usingTouch) { ctx.globalAlpha = clamp(this.tipT, 0, 1); ctx.font = font(24, 700); const w = ctx.measureText(L.tip).width + 40; fillRR(30, H - 140, w, 50, 18, 'rgba(27,42,74,0.9)'); text(L.tip, 30 + w / 2, H - 115, 24, '#FFFFFF', 'center', 700); ctx.globalAlpha = 1; }
-    if (L.wind && Math.abs(this.wind) > 60) { const up = this.wind < 0; fillRR(30, 100, 190, 50, 18, 'rgba(255,255,255,0.9)'); text(L.mode === 'dive' ? (up ? 'Current ▲' : 'Current ▼') : (up ? 'Wind ▲' : 'Wind ▼'), 125, 125, 24, '#3B6FD8', 'center', 700); }
+    if (L.wind && Math.abs(this.wind) > 60) { const up = this.wind < 0; fillRR(30, 158, 190, 50, 18, 'rgba(255,255,255,0.9)'); text(L.mode === 'dive' ? (up ? 'Current ▲' : 'Current ▼') : (up ? 'Wind ▲' : 'Wind ▼'), 125, 183, 24, '#3B6FD8', 'center', 700); }
     for (const b of this.touchButtons()) {
       circle(b.x, b.y, b.r, (b.id !== 'ok' && held[b.id]) ? 'rgba(255,194,26,0.85)' : 'rgba(27,42,74,0.55)');
       ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.stroke();

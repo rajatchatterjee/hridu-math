@@ -87,6 +87,17 @@ runs in any browser on phones and laptops.
   a bump) · catch (◀ ▶ basket; `mathCatch` = catch the number ball with the
   right answer) · maze (generated each time; collect all items, dodge
   patrolling guards, then reach the exit; pac-man style movement).
+- **Collect-to-finish (Rajat's rule: every level needs X items):** run/fly/
+  dive/space levels have a target (`artifactNeed`: ~55% of treats in run
+  levels, ~45% of rings/stars/pearls/fuel elsewhere; override with `L.need`).
+  Counter top-left. Reaching the finish line short of it keeps the level
+  going ("Collect N more…") until met. Number Gates need N CORRECT answers
+  (wrong ones don't count); rescue/catch/maze already require their goal.
+- **No edge camping (he hid at the top of the screen):** in fly/dive/space/
+  rescue the top (and bottom, except rescue) edges are hazards — lingering
+  >0.45 s costs a heart and bounces him back; ~35% of obstacles spawn at his
+  current height (`aimY`). A top-camping bot loses all hearts in seconds and
+  collects ~7 of 35–47 needed items.
 - **Mid-level stories:** every level 9+ has `mid` lines that interrupt play at
   50% progress as an unskippable voiced Story ("Along the way…"); chapter
   openers (`CHAPTER_INTRO`) play once before levels 9/14/19/24.
@@ -157,6 +168,8 @@ rejects as a downgrade.
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Every level needs X items collected to finish; Number Gates need
+  N correct answers; dangerous screen edges + aimed obstacles stop camping.
 - 2026-10-31: Different music for every level (30 unique generated tunes with
   drums and bass), styled to each world and game type.
 - 2026-10-31: Fix: saves from before chapters 2–5 had `unlocked` capped at 8; on
