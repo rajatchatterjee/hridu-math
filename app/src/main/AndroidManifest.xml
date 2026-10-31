@@ -8,6 +8,9 @@
     <!-- Only used to load the rounded web font; the game works offline without it. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- In-app updates: install the newer APK downloaded from GitHub Releases. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Android 11+: lets the app find the device's text-to-speech engine (voice-over). -->
     <queries>
         <intent>

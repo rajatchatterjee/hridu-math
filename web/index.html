@@ -1423,12 +1423,13 @@ class MapScene {
 
 class Title {
   constructor() { this.sel = 0; this.isRoot = true; this.off = 0; }
-  items() { const it = ['Play', 'Settings']; if (canInstall()) it.push('Install as an app'); return it; }
-  rects() { return this.items().map((s, k) => ({ x: W / 2 - 230, y: 400 + k * 86 + (k ? 6 : 0), w: 460, h: k === 0 ? 76 : 66 })); }
+  items() { const it = ['Play', 'Settings']; if (canInstall()) it.push('Install as an app'); if (updateAvailable()) it.push('Update to new version'); return it; }
+  rects() { const n = this.items().length, step = n > 3 ? 74 : 86; return this.items().map((s, k) => ({ x: W / 2 - 230, y: 394 + k * step + (k ? 6 : 0), w: 460, h: k === 0 ? 70 : 60 })); }
   choose(k) {
     SFX.move();
     if (k === 0) { if (!save.seenIntro) { save.seenIntro = true; persist(); scene = new Story(PROLOGUE, 'meadow', () => goMap(1), { title: "Hridu's Great Rescue", kicker: 'The story begins' }); } else goMap(); }
     else if (k === 1) scene = new Settings();
+    else if (this.items()[k] === 'Update to new version') { if (Update.state !== 'downloading' && Update.state !== 'installing') { Update.state = 'downloading'; Update.detail = '0'; try { window.HriduApp.installUpdate(); } catch (e) { Update.state = 'failed'; } } }
     else installApp(this);
   }
   onAction(a) {
@@ -1449,9 +1450,13 @@ class Title {
     text('Fly, run, rescue — and solve puzzles!', W / 2, 360, 30, INK, 'center', 700);
     this.rects().forEach((r, k) => {
       if (k === this.sel) fillRR(r.x - 8, r.y - 8, r.w + 16, r.h + 16, 30, '#FFC21A');
-      fillRR(r.x, r.y, r.w, r.h, 24, k === 0 ? '#2E9C5B' : '#FFFFFF');
-      text(this.items()[k], W / 2, r.y + r.h / 2 + 1, k === 0 ? 42 : 30, k === 0 ? '#FFFFFF' : INK, 'center', 700);
+      const upd = this.items()[k] === 'Update to new version';
+      fillRR(r.x, r.y, r.w, r.h, 24, k === 0 ? '#2E9C5B' : upd ? '#2F6FD0' : '#FFFFFF');
+      text(this.items()[k], W / 2, r.y + r.h / 2 + 1, k === 0 ? 42 : 30, (k === 0 || upd) ? '#FFFFFF' : INK, 'center', 700);
     });
+    const um = updateMessage();
+    if (um) { this.toast = um; this.toastT = T + 1; }
+    if (window.HriduApp && Update.current) text('v1.' + Update.current + (updateAvailable() ? '  ·  new: v1.' + Update.latest : ''), W - 20, H - 16, 18, 'rgba(27,42,74,0.7)', 'right', 600);
     if (this.toast && this.toastT > T) {
       const tl = wrapLines(this.toast, 980, 26, 700), th = 30 + tl.length * 34;
       fillRR(W / 2 - 520, 236, 1040, th, 22, INK);
@@ -1544,6 +1549,25 @@ function installApp(title) {
   title.toast = installHelp(); title.toastT = T + 9;
 }
 if ('serviceWorker' in navigator && isWeb) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+
+/* ---------------- app updates (TV/phone APK only) ----------------
+   The Android app checks GitHub's latest Release on start; if it's newer,
+   the title screen offers "Update to new version", which downloads it and
+   opens Android's own install-update screen. */
+const Update = { latest: 0, current: 0, state: '', detail: '' };
+window.hriduUpdateInfo = (latest, current) => { Update.latest = latest; Update.current = current; };
+window.hriduUpdateStatus = (state, detail) => { Update.state = state; Update.detail = detail; };
+const updateAvailable = () => !!window.HriduApp && Update.latest > Update.current;
+function updateMessage() {
+  const st = Update.state, d = Update.detail;
+  if (st === 'downloading') return `Downloading the new version… ${d}%`;
+  if (st === 'installing') return 'Almost there! Press "Update" / "Install" on the next screen.';
+  if (st === 'permission') return 'One-time step: turn ON "Allow from this source" for Hridu\'s Great Rescue, then press Back and choose Update again.';
+  if (st === 'failed') return d || 'The update did not work. Try again.';
+  if (st === 'done') return 'Updated! Open the game again.';
+  return '';
+}
+if (window.HriduApp) { try { Update.current = window.HriduApp.versionCode(); window.HriduApp.checkUpdate(); } catch (e) {} }
 
 /* ---------------- boot ---------------- */
 resize();

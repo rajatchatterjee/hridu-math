@@ -90,6 +90,21 @@ The TV can't use ADB. Install the **Downloader** app on the TV, then enter the
 APK link from the latest Release:
 `https://github.com/rajatchatterjee/hridu-math/releases/latest/download/hridu-great-rescue.apk`
 
+**Updates after that happen inside the app** (build 9+): on launch the app
+asks GitHub's API for the latest Release (`HriduApp.checkUpdate`); if its
+`build-N` is higher than the installed versionCode, the title screen shows
+"Update to new version" (blue button + "v1.X · new: v1.Y" bottom-right).
+Choosing it downloads the APK straight into Android's PackageInstaller
+session and opens the system "Update" confirmation. First time only, Android
+asks to allow "Install unknown apps" for the game (REQUEST_INSTALL_PACKAGES).
+Status comes back to the page via `hriduUpdateStatus(state, detail)`.
+
+Why: re-installing through Downloader kept failing on the TV even though all
+builds share the same signing key and rising versionCodes (verified builds
+1/7/8: same cert SHA-256 54:EC:6E…, versionCode = run number). Downloader
+likely hands over a stale cached copy of the same-named file, which Android
+rejects as a downgrade.
+
 ## Gotchas
 - Pages **Source must be "GitHub Actions"** (Settings → Pages). On "Deploy from
   a branch", GitHub's own "pages build and deployment" also runs and publishes
@@ -106,6 +121,8 @@ APK link from the latest Release:
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: In-app updater for the TV/phone app (no Downloader needed for
+  updates); version shown on the title screen.
 - 2026-10-31: Voice-over for all story and puzzle text (can't be skipped),
   background music, 7 outfits, Settings screen.
 - 2026-10-31: Math answers are now typed on a number pad (no MCQ for
