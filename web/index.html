@@ -10,6 +10,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Hridu">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 html,body{margin:0;height:100%;background:#16203A;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
 #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
@@ -456,7 +461,7 @@ function drawCactus(x, y, s, c) {
    STORY
    ===================================================================== */
 const PROLOGUE = [
-  { who: 'hridu', text: "Hi! I'm Hridu. I'm 8 years old, I love numbers, and I've never met a puzzle I couldn't crack!" },
+  { who: 'hridu', text: "Hi! I'm Hridu. I love numbers, and I've never met a puzzle I couldn't crack!" },
   { who: 'grumble', mood: 'angry', text: 'One windy evening, a grumpy storm cloud called Grumble blew through Sunnyvale Zoo... WHOOOSH! All the animals were scattered far away!' },
   { who: 'zippy', text: "Vroom! I'm Zippy, Grandpa's old toy plane. Grumble's storm magic woke me up! Hridu, let's bring everyone home!" },
   { who: 'hoot', text: 'Hoo-hoo! I am Professor Hoot. Zippy runs on BRAIN FUEL. Every few minutes, stop at my Puzzle Pit Stop and solve two puzzles to fill him up!' },
@@ -571,29 +576,61 @@ function numOptions(ans, spread) {
 }
 function band(level) { return level <= 2 ? 0 : level <= 4 ? 1 : level <= 6 ? 2 : 3; }
 
-function makeMath(b) {
-  let p, ans, hint, spread = 3;
-  const r = Math.random();
-  const fruit = pick(['mangoes', 'bananas', 'carrots', 'apples', 'stars']);
-  if (b === 0) {
-    if (r < 0.55) { const a = ri(2, 12), c = ri(1, Math.max(1, 20 - a)); ans = a + c; p = `${a} + ${c} = ?`; hint = `Start at ${Math.max(a, c)} and count on ${Math.min(a, c)} more.`; }
-    else if (r < 0.9) { const a = ri(6, 20), c = ri(1, a - 2); ans = a - c; p = `${a} − ${c} = ?`; hint = `Start at ${a} and count back ${c}.`; }
-    else { const a = ri(2, 6), c = ri(1, 6); ans = a + c; p = `Hridu has ${a} ${fruit}. Bibi gives him ${c} more. How many now?`; hint = `${a} + ${c}. Count on from ${a}!`; }
-  } else if (b === 1) {
-    if (r < 0.4) { const a = ri(11, 60), c = ri(5, 99 - a > 38 ? 38 : 99 - a); ans = a + c; p = `${a} + ${c} = ?`; hint = 'Add the tens first, then the ones.'; spread = 10; }
-    else if (r < 0.75) { const a = ri(30, 99), c = ri(5, a - 12); ans = a - c; p = `${a} − ${c} = ?`; hint = 'Take away the tens first, then the ones.'; spread = 10; }
-    else { const c = ri(3, 9), s = ri(c + 5, 20); ans = s - c; p = `? + ${c} = ${s}`; hint = `What number plus ${c} makes ${s}? Try counting up from ${c}.`; }
-  } else if (b === 2) {
-    if (r < 0.55) { const a = pick([2, 5, 10, 3, 4]), c = ri(2, 10); ans = a * c; p = `${c} × ${a} = ?`; hint = `${c} × ${a} means ${c} groups of ${a}. Count in ${a}s!`; spread = a; }
-    else if (r < 0.8) { const a = ri(20, 70), c = ri(12, 29); ans = a + c; p = `${a} + ${c} = ?`; hint = 'Add the tens first, then the ones.'; spread = 10; }
-    else { const a = ri(2, 5), c = pick([2, 5, 10]); ans = a * c; p = `${a} baskets have ${c} ${fruit} each. How many ${fruit} in all?`; hint = `That's ${a} × ${c}. Count in ${c}s, ${a} times.`; spread = c; }
-  } else {
-    if (r < 0.45) { const a = ri(3, 9), c = ri(3, 10); ans = a * c; p = `${a} × ${c} = ?`; hint = `Count in ${a}s, ${c} times. Or use ${c} × ${a}!`; spread = a; }
-    else if (r < 0.65) { const a = ri(2, 6), c = ri(2, 6); ans = a; p = `${a * c} ${fruit} shared by ${c} monkeys. How many each?`; hint = `What times ${c} makes ${a * c}?`; spread = 2; }
-    else if (r < 0.85) { const c = ri(4, 9), s = ri(c + 8, 40); ans = s - c; p = `${s} − ? = ${c}`; hint = `What do you take away from ${s} to leave ${c}?`; spread = 10; }
-    else { const a = ri(30, 80), c = ri(11, a - 10); ans = a - c; p = `The trip is ${a} km. Zippy has flown ${c} km. How many km are left?`; hint = `${a} − ${c}. Take away the tens, then the ones.`; spread = 10; }
+// Math is always two-digit addition or subtraction (both numbers 10–99,
+// answers 10–99). Levels change HOW hard: no carrying/borrowing first, then
+// carrying and borrowing, then missing-number and story forms.
+function twoDigitAdd(b) {
+  for (let k = 0; k < 200; k++) {
+    const a = ri(10, 89), c = ri(10, 99 - a);
+    const carry = (a % 10) + (c % 10) >= 10;
+    if (b === 0 && carry) continue;
+    if (b >= 2 && !carry && Math.random() < 0.7) continue;
+    return [a, c, carry];
   }
-  const o = numOptions(ans, spread);
+  return [23, 14, false];
+}
+function twoDigitSub(b) {
+  for (let k = 0; k < 200; k++) {
+    const a = ri(20, 99), c = ri(10, a - 10);
+    const borrow = (a % 10) < (c % 10);
+    if (b === 0 && borrow) continue;
+    if (b >= 2 && !borrow && Math.random() < 0.7) continue;
+    return [a, c, borrow];
+  }
+  return [58, 23, false];
+}
+const ADD_STORIES = [
+  (a, c) => `Hridu collected ${a} stars, then ${c} more. How many stars now?`,
+  (a, c) => `Bibi ate ${a} carrots on Monday and ${c} on Tuesday. How many in all?`,
+  (a, c) => `Zippy flew ${a} km before lunch and ${c} km after. How far altogether?`,
+  (a, c) => `There are ${a} lions and ${c} zebras at the zoo. How many animals in all?`,
+  (a, c) => `Chiku ran ${a} laps, then ${c} more laps. How many laps in total?`,
+];
+const SUB_STORIES = [
+  (a, c) => `Chiku had ${a} bananas and gave ${c} to the monkeys. How many are left?`,
+  (a, c) => `The trip is ${a} km. Zippy has flown ${c} km. How many km are left?`,
+  (a, c) => `There were ${a} birds in the sky. ${c} flew away. How many stayed?`,
+  (a, c) => `Kanta found ${a} mangoes and shared ${c} with friends. How many does she have now?`,
+  (a, c) => `Hridu had ${a} stickers and used ${c}. How many stickers are left?`,
+];
+function makeMath(b) {
+  const forms = [['add', 'sub'], ['add', 'sub', 'add', 'sub', 'storyAdd', 'storySub'], ['add', 'sub', 'missAdd', 'missSub', 'storyAdd', 'storySub'], ['add', 'sub', 'missAdd', 'missSub', 'storyAdd', 'storySub']][b];
+  const f = pick(forms);
+  let p, ans, hint;
+  if (f === 'add' || f === 'missAdd' || f === 'storyAdd') {
+    const [a, c, carry] = twoDigitAdd(b), sum = a + c;
+    const how = carry ? `Ones first: ${a % 10} + ${c % 10} = ${(a % 10) + (c % 10)}. Write ${((a % 10) + (c % 10)) % 10} and carry 1 ten!` : `Add the tens (${a - a % 10} + ${c - c % 10}), then the ones (${a % 10} + ${c % 10}).`;
+    if (f === 'add') { p = `${a} + ${c} = ?`; ans = sum; hint = how; }
+    else if (f === 'missAdd') { p = `${a} + ? = ${sum}`; ans = c; hint = `What do you add to ${a} to make ${sum}? Count up in tens, then ones.`; }
+    else { p = pick(ADD_STORIES)(a, c); ans = sum; hint = `That's ${a} + ${c}. ` + how; }
+  } else {
+    const [a, c, borrow] = twoDigitSub(b), diff = a - c;
+    const how = borrow ? `${a % 10} is smaller than ${c % 10}, so borrow a ten: ${(a % 10) + 10} − ${c % 10} = ${(a % 10) + 10 - (c % 10)}.` : `Take away the tens (${a - a % 10} − ${c - c % 10}), then the ones (${a % 10} − ${c % 10}).`;
+    if (f === 'sub') { p = `${a} − ${c} = ?`; ans = diff; hint = how; }
+    else if (f === 'missSub') { p = `${a} − ? = ${diff}`; ans = c; hint = `What do you take away from ${a} to leave ${diff}? Try ${a} − ${diff}.`; }
+    else { p = pick(SUB_STORIES)(a, c); ans = diff; hint = `That's ${a} − ${c}. ` + how; }
+  }
+  const o = numOptions(ans, 10);
   return { cat: 'Math', prompt: p, options: o.options, ans: o.ans, hint };
 }
 
@@ -605,14 +642,31 @@ const ODD = [
   { label: 'body parts', items: ['Hand', 'Nose', 'Ear', 'Foot', 'Knee', 'Elbow'] },
   { label: 'things in the sky', items: ['Sun', 'Moon', 'Cloud', 'Star', 'Rainbow'] },
 ];
-const OPP = [['HOT', 'COLD'], ['BIG', 'SMALL'], ['UP', 'DOWN'], ['FAST', 'SLOW'], ['DAY', 'NIGHT'], ['HAPPY', 'SAD'], ['OPEN', 'CLOSED'], ['FULL', 'EMPTY'], ['TALL', 'SHORT'], ['WET', 'DRY'], ['LIGHT', 'HEAVY'], ['IN', 'OUT']];
+const OPP = [['HOT', 'COLD'], ['BIG', 'SMALL'], ['UP', 'DOWN'], ['FAST', 'SLOW'], ['DAY', 'NIGHT'], ['HAPPY', 'SAD'], ['OPEN', 'CLOSED'], ['FULL', 'EMPTY'], ['TALL', 'SHORT'], ['WET', 'DRY'], ['LIGHT', 'HEAVY'], ['IN', 'OUT'], ['HARD', 'SOFT'], ['LOUD', 'QUIET'], ['EARLY', 'LATE'], ['FIRST', 'LAST'], ['THICK', 'THIN'], ['PUSH', 'PULL'], ['WIN', 'LOSE'], ['OLD', 'NEW'], ['NEAR', 'FAR'], ['RICH', 'POOR'], ['ABOVE', 'BELOW'], ['LEFT', 'RIGHT'], ['BEFORE', 'AFTER'], ['CLEAN', 'DIRTY'], ['ASLEEP', 'AWAKE'], ['BRAVE', 'SCARED'], ['FRONT', 'BACK'], ['GIVE', 'TAKE'], ['ARRIVE', 'LEAVE'], ['STRONG', 'WEAK'], ['SHARP', 'BLUNT'], ['BUY', 'SELL'], ['WIDE', 'NARROW'], ['YES', 'NO']];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-let lastPuzzle = '';
-function makePuzzle(b) {
-  const types = { numSeq: 3, shapeSeq: 3, odd: 2, count: 2, next: 2, opp: b < 2 ? 2 : 1, biggest: 1 };
-  delete types[lastPuzzle];
-  const t = weighted(types); lastPuzzle = t;
+// Puzzle kinds come from a shuffled bag so every kind gets a turn before any repeats.
+let puzzleBag = [], lastPuzzle = '';
+function nextPuzzleType() {
+  if (!puzzleBag.length) puzzleBag = shuffle(['numSeq', 'shapeSeq', 'odd', 'count', 'next', 'opp', 'biggest']);
+  if (puzzleBag[puzzleBag.length - 1] === lastPuzzle && puzzleBag.length > 1) puzzleBag.unshift(puzzleBag.pop());
+  return (lastPuzzle = puzzleBag.pop());
+}
+// Never show a question Hridu has already seen (remembers the last 600).
+function qKey(q) {
+  const v = q.visual ? q.visual.items.map(i => (i && typeof i === 'object') ? i.shape + i.color : i).join(',') : '';
+  const a = q.options[q.ans];
+  return q.cat + '|' + q.prompt + '|' + v + '|' + (a.text || a.shape + a.color);
+}
+function freshQuestion(gen, fallback) {
+  const seen = new Set(save.seen || []);
+  let q = gen();
+  for (let k = 0; k < 160 && seen.has(qKey(q)); k++) q = (k > 40 && fallback) ? fallback() : gen();
+  save.seen = (save.seen || []).concat(qKey(q)).slice(-600); persist();
+  return q;
+}
+function makePuzzle(b, t) {
+  t = t || nextPuzzleType();
   if (t === 'numSeq') {
     let a, d, seqv;
     if (b >= 2 && Math.random() < 0.25) { a = ri(1, 3); seqv = [a, a * 2, a * 4, a * 8]; const ans = a * 16; const o = numOptions(ans, a * 2); return { cat: 'Puzzle', prompt: 'What number comes next?', visual: { kind: 'seq', items: [...seqv.map(String), '?'] }, options: o.options, ans: o.ans, hint: 'Each number is DOUBLE the one before it.' }; }
@@ -678,7 +732,8 @@ function makePuzzle(b) {
 class PitStop {
   constructor(play) {
     this.play = play; const b = band(play.L.n);
-    this.qs = [makeMath(b), makePuzzle(b)];
+    const pt = nextPuzzleType();
+    this.qs = [freshQuestion(() => makeMath(b)), freshQuestion(() => makePuzzle(b, pt), () => makePuzzle(b, pick(['numSeq', 'shapeSeq', 'count', 'biggest'])))];
     this.i = 0; this.state = 'intro'; this.sel = 0; this.wrong = new Set(); this.firstTry = 0; this.tries = 0; this.timer = 0; this.shake = 0; this.feedback = '';
     this.isRoot = false;
   }
@@ -1139,13 +1194,14 @@ class MapScene {
 
 class Title {
   constructor() { this.sel = 0; this.isRoot = true; this.off = 0; }
-  items() { return ['Play', `Puzzle every: ${save.interval} min`, `Sound: ${save.sound ? 'On' : 'Off'}`]; }
-  rects() { return this.items().map((s, k) => ({ x: W / 2 - 230, y: 400 + k * 86, w: 460, h: k === 0 ? 74 : 66 })); }
+  items() { const it = ['Play', `Puzzle every: ${save.interval} min`, `Sound: ${save.sound ? 'On' : 'Off'}`]; if (canInstall()) it.push('Install as an app'); return it; }
+  rects() { return this.items().map((s, k) => ({ x: W / 2 - 230, y: 386 + k * 76 + (k ? 6 : 0), w: 460, h: k === 0 ? 70 : 60 })); }
   choose(k, dir) {
     SFX.move();
     if (k === 0) { if (!save.seenIntro) { save.seenIntro = true; persist(); scene = new Story(PROLOGUE, 'meadow', () => goMap(1), { title: "Hridu's Great Rescue", kicker: 'The story begins', onBack: () => goMap(1) }); } else goMap(); }
     else if (k === 1) { const opts = [3, 5, 8, 10]; let i = opts.indexOf(save.interval); i = (i + (dir || 1) + opts.length) % opts.length; save.interval = opts[i]; save.clock = Math.min(save.clock, save.interval * 60 - 5); persist(); }
-    else { save.sound = !save.sound; persist(); }
+    else if (k === 2) { save.sound = !save.sound; persist(); }
+    else installApp(this);
   }
   onAction(a) {
     const n = this.items().length;
@@ -1170,9 +1226,24 @@ class Title {
       text(this.items()[k], W / 2, r.y + r.h / 2 + 1, k === 0 ? 40 : 28, k === 0 ? '#FFFFFF' : INK, 'center', 700);
       if (k === 1 && this.sel === 1 && !usingTouch) { text('◀', r.x + 30, r.y + r.h / 2, 24, INK, 'center', 700); text('▶', r.x + r.w - 30, r.y + r.h / 2, 24, INK, 'center', 700); }
     });
-    text('For grown-ups: puzzles pop up after this much play time.', W / 2, 690, 18, 'rgba(27,42,74,0.75)', 'center', 600);
+    if (this.toast && this.toastT > T) { fillRR(W / 2 - 330, 640, 660, 60, 22, INK); text(this.toast, W / 2, 670, 24, '#FFFFFF', 'center', 700); }
+    else text('For grown-ups: puzzles pop up after this much play time.', W / 2, 704, 16, 'rgba(27,42,74,0.75)', 'center', 600);
   }
 }
+
+/* ---------------- installable app (PWA) ---------------- */
+let installEvt = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isInstalled = () => matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isWeb = location.protocol === 'https:' || location.hostname === 'localhost';
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
+addEventListener('appinstalled', () => { installEvt = null; });
+function canInstall() { return isWeb && !isInstalled() && (installEvt || isIOS); }
+function installApp(title) {
+  if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; }); return; }
+  title.toast = 'Tap the Share button, then "Add to Home Screen"'; title.toastT = T + 6;
+}
+if ('serviceWorker' in navigator && isWeb) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
 /* ---------------- boot ---------------- */
 resize();

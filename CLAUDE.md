@@ -1,6 +1,6 @@
 # Hridu's Great Rescue (repo: hridu-math)
 
-A kids' adventure game for Hridaan ("Hridu", age 8). He flies Zippy the toy
+A kids' adventure game for Hridaan ("Hridu"). He flies Zippy the toy
 plane, rides animals and rescues zoo friends. After every few minutes of play
 (5 by default) a **Puzzle Pit Stop** pauses the game: one math question and one
 brain puzzle (pattern, odd-one-out, counting, opposites, what-comes-next),
@@ -10,6 +10,11 @@ runs in any browser on phones and laptops.
 ## Layout
 - `web/index.html` — the whole game, one file, plain canvas JS, no build step.
   Logical canvas 1280x720, letterboxed to any screen.
+- `web/manifest.webmanifest`, `web/sw.js`, `web/icons/` — make the web build an
+  installable app (PWA): full-screen, landscape, works offline. Title screen
+  shows "Install as an app" when the browser allows it (Chrome/Edge prompt,
+  iPhone/iPad gets "Share → Add to Home Screen"). Hidden inside the TV APK.
+  Icons are rendered from the game's own drawing code (Zippy + Hridu).
 - `app/` — tiny Android wrapper (Java, one `MainActivity` WebView). Gradle
   bundles `../web` as the APK's assets, so the APK and the web build are
   always the same game.
@@ -32,8 +37,16 @@ runs in any browser on phones and laptops.
   Kanta the camel), 7 Storm Flight (fly, wind), 8 Big Zoo Parade (rescue 6),
   then the ending. Story cards before/after each level; villain is Grumble the
   lonely storm cloud, puzzle host is Professor Hoot the owl.
-- Puzzle difficulty bands by level: 1–2 add/sub to 20 · 3–4 to 100 ·
-  5–6 tables 2/5/10 + word problems · 7–8 tables to 10, missing numbers, sharing.
+- Math is ONLY two-digit addition and subtraction (both numbers 10–99,
+  answers 10–99) — Rajat's rule. Bands by level: 1–2 no carrying/borrowing ·
+  3–4 mixed + short story problems · 5–8 mostly carrying/borrowing, plus
+  missing-number (`45 + ? = 72`) and story forms. Hints walk through the
+  carry/borrow step with the actual digits.
+- Every question must be new: `freshQuestion()` keys each question and skips
+  any of the last 600 seen (stored in `save.seen`); puzzle kinds rotate through
+  a shuffled bag (number pattern, shape pattern, odd-one-out, counting,
+  what-comes-next, opposites, biggest/smallest). If a small word pool runs dry
+  it falls back to an endless kind (number/shape patterns, counting).
 - Wrong answers show a hint and grey out that choice; first-try answers give
   bonus stars. Pit stops can't be skipped.
 - Progress, stars, play-clock and settings persist in localStorage
@@ -56,5 +69,8 @@ APK link from the latest Release:
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Age removed from story/docs. Web build is now an installable
+  PWA (manifest, offline service worker, icons, install button). Math limited
+  to two-digit +/−; no repeated questions; bigger opposites list.
 - 2026-10-31: First version — 3 game modes, 8 levels with story, puzzle pit
   stops, TV/phone/laptop controls, Android TV wrapper, APK Release + Pages.
