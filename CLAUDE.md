@@ -27,6 +27,27 @@ runs in any browser on phones and laptops.
   is a generated redirect to it. (In the repo the file stays `web/index.html`
   because the APK loads that.) Live: https://rajatchatterjee.github.io/hridu-math/hridu-great-rescue.html
 
+## Voice-over, music, outfits
+- **Voice-over** (`Voice` in index.html): story cards, pit-stop intro,
+  questions, hints and praise are read aloud with the device's own TTS —
+  `speechSynthesis` on the web, Android `TextToSpeech` in the APK via the
+  `window.HriduTTS` bridge in MainActivity (WebView has no speechSynthesis;
+  manifest declares the TTS_SERVICE `<queries>` for Android 11+). Prefers an
+  en-IN voice. Each character has its own pitch/rate (`VOICES`).
+- **Can't be skipped** (Rajat's rule): a story card only advances once the
+  voice has finished (Android signals `hriduVoiceDone(id)`); Back never skips
+  story (it only leaves a level intro to the map). In pit stops, answering is
+  locked until the question has been read. If no voice is available, the
+  same lock runs on a reading-time timer (`Voice.done()`).
+- **Music** (`Music`/`TUNES`): generated in code with WebAudio, no files —
+  'adventure' loop everywhere, calm 'think' loop in pit stops; ducks while
+  someone is talking; on/off in Settings.
+- **Outfits** (`OUTFITS`): Space suit (default, from his real top), Pilot
+  jacket, Superhero, Cricket kit, Festive kurta, Explorer, Dino hoodie.
+  Chosen in Settings (big preview); used everywhere Hridu is drawn.
+- **Settings screen**: outfit, puzzle timer (3/5 min), sound effects, music.
+  Title screen is Play / Settings / Install as an app.
+
 ## Controls
 - TV remote / keyboard: arrows, OK/Enter/Space, Back/Esc (pause or up a screen).
 - Touch: on-screen Jump/Duck (run) or ▲▼/Zoom (fly) buttons, pause button.
@@ -85,6 +106,8 @@ APK link from the latest Release:
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Voice-over for all story and puzzle text (can't be skipped),
+  background music, 7 outfits, Settings screen.
 - 2026-10-31: Math answers are now typed on a number pad (no MCQ for
   math); puzzle interval limited to 3 or 5 min.
 - 2026-10-31: Web game now lives at `/hridu-great-rescue.html` (Rajat's ask);

@@ -47,7 +47,7 @@ let K = 1, T = 0;
 
 /* ---------------- save data ---------------- */
 const SAVE_KEY = 'hridu-math-v1';
-let save = { unlocked: 1, stars: {}, interval: 5, sound: true, clock: 0, solved: 0, seenIntro: false };
+let save = { unlocked: 1, stars: {}, interval: 5, sound: true, music: true, outfit: 'space', clock: 0, solved: 0, seenIntro: false };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object.assign(save, s); } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 const params = new URLSearchParams(location.search);
@@ -112,6 +112,99 @@ const SFX = {
   rescue: () => seq([587, 784, 988, 1175], 80),
 };
 
+/* ---------------- voice-over ----------------
+   Uses the device's own text-to-speech: Android's engine inside the TV app
+   (window.HriduTTS bridge), the browser's speechSynthesis on the web. Each
+   character gets their own pitch/speed. Story and questions wait until the
+   line has been read; with no voice available they wait for reading time. */
+const VOICES = {
+  hridu: { pitch: 1.3, rate: 1.0 }, zippy: { pitch: 1.15, rate: 1.08 }, hoot: { pitch: 0.75, rate: 0.9 },
+  grumble: { pitch: 0.5, rate: 0.85 }, bibi: { pitch: 1.7, rate: 1.05 }, chiku: { pitch: 1.05, rate: 1.1 },
+  kanta: { pitch: 0.9, rate: 0.95 }, narrator: { pitch: 1.0, rate: 0.95 },
+};
+function spoken(t) {
+  return String(t)
+    .replace(/×/g, ' times ').replace(/−/g, ' minus ').replace(/\+/g, ' plus ').replace(/=/g, ' equals ')
+    .replace(/(^|\s)\?(?=\s|$)/g, ' what number ').replace(/\bkm\b/g, 'kilometres')
+    .replace(/[▲▼◀▶✓]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+const Voice = {
+  id: 0, started: -99, est: 0, ended: true, failed: false, voice: null,
+  web: 'speechSynthesis' in window,
+  get native() { return !!window.HriduTTS; },
+  pickVoice() {
+    if (!this.web) return;
+    let vs = []; try { vs = speechSynthesis.getVoices(); } catch (e) {}
+    if (!vs.length) return;
+    const norm = l => (l || '').replace('_', '-').toLowerCase();
+    for (const p of ['en-in', 'en-gb', 'en-us', 'en']) { const v = vs.find(v => norm(v.lang).startsWith(p)); if (v) { this.voice = v; return; } }
+    this.voice = vs[0];
+  },
+  say(text, who) {
+    const line = spoken(text), pr = VOICES[who] || VOICES.narrator;
+    this.stop();
+    const id = ++this.id;
+    this.started = T; this.est = 0.8 + line.length / (13 * pr.rate); this.ended = false; this.failed = false;
+    if (this.native) { let ok = false; try { ok = window.HriduTTS.speak(line, pr.pitch, pr.rate, String(id)); } catch (e) {} if (!ok) this.failed = true; return; }
+    if (this.web) {
+      try {
+        if (!this.voice) this.pickVoice();
+        const u = new SpeechSynthesisUtterance(line);
+        if (this.voice) { u.voice = this.voice; u.lang = this.voice.lang; } else u.lang = 'en-IN';
+        u.pitch = pr.pitch; u.rate = pr.rate * 0.95;
+        u.onend = () => { if (id === this.id) this.ended = true; };
+        u.onerror = () => { if (id === this.id) this.failed = true; };
+        speechSynthesis.speak(u);
+      } catch (e) { this.failed = true; }
+      return;
+    }
+    this.failed = true;
+  },
+  stop() { this.id++; this.ended = true; this.failed = false; try { if (this.native) window.HriduTTS.stop(); else if (this.web) speechSynthesis.cancel(); } catch (e) {} },
+  // Has the current line been fully read? (No voice: after normal reading time.)
+  done() { const t = T - this.started; if (this.failed) return t >= this.est; if (this.ended) return true; return t >= this.est * 2.5 + 3; },
+  get speaking() { return !this.done(); },
+};
+window.hriduVoiceDone = id => { if (String(Voice.id) === String(id)) Voice.ended = true; };
+window.hriduVoiceError = id => { if (String(Voice.id) === String(id)) Voice.failed = true; };
+if (Voice.web) { Voice.pickVoice(); try { speechSynthesis.onvoiceschanged = () => Voice.pickVoice(); } catch (e) {} }
+
+/* ---------------- background music (made in code, no files) ---------------- */
+const TUNES = {
+  adventure: { bpm: 118, wave: 'triangle', vol: 0.055,
+    mel: [72, 0, 76, 79, 77, 76, 74, 0, 72, 74, 76, 72, 74, 0, 67, 0, 72, 0, 76, 79, 81, 79, 77, 76, 74, 76, 77, 74, 72, 0, 0, 0,
+          76, 0, 79, 84, 83, 81, 79, 0, 77, 79, 81, 77, 76, 0, 74, 0, 72, 74, 76, 77, 79, 77, 76, 74, 72, 71, 72, 74, 72, 0, 0, 0],
+    bass: [48, 48, 53, 53, 55, 55, 48, 48, 48, 48, 53, 53, 55, 55, 48, 48] },
+  think: { bpm: 84, wave: 'sine', vol: 0.05,
+    mel: [60, 64, 67, 72, 67, 64, 60, 64, 57, 60, 64, 69, 64, 60, 57, 60, 53, 57, 60, 65, 60, 57, 53, 57, 55, 59, 62, 67, 62, 59, 55, 59],
+    bass: [48, 45, 41, 43] },
+};
+const Music = {
+  tune: null, step: 0, next: 0, out: null,
+  want(name) {
+    if (!AC || !save.music || document.hidden) { this.tune = null; return; }
+    if (!this.out) { this.out = AC.createGain(); this.out.gain.value = 1; this.out.connect(AC.destination); }
+    if (name !== this.tune) { this.tune = name; this.step = 0; this.next = AC.currentTime + 0.15; }
+    this.out.gain.setTargetAtTime(Voice.speaking ? 0.3 : 1, AC.currentTime, 0.15); // quieter while someone talks
+    const tn = TUNES[name], dt = 60 / tn.bpm / 2;
+    while (this.next < AC.currentTime + 0.3) {
+      const m = tn.mel[this.step % tn.mel.length];
+      if (m) this.note(m, this.next, dt * 1.6, tn.wave, tn.vol);
+      const per = tn.mel.length / tn.bass.length * (name === 'think' ? 1 : 0.5);
+      if (this.step % Math.max(1, Math.round(per)) === 0) this.note(tn.bass[Math.floor(this.step / Math.max(1, Math.round(per))) % tn.bass.length], this.next, dt * 3, 'sine', tn.vol * 1.1);
+      this.next += dt; this.step++;
+    }
+  },
+  note(m, t, d, type, vol) {
+    try {
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = type; o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(this.out); o.start(t); o.stop(t + d + 0.05);
+    } catch (e) {}
+  },
+};
+
 /* ---------------- input ---------------- */
 const held = { up: false, down: false };
 const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Enter: 'ok', NumpadEnter: 'ok', Space: 'ok', ' ': 'ok', Escape: 'back', Backspace: 'del', KeyP: 'back', GoBack: 'back', BrowserBack: 'back' };
@@ -174,7 +267,10 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // Android TV wrapper calls this on the remote's Back button. Return false to let the app close.
 window.hriduBack = function () { if (!scene || scene.isRoot) return false; act('back'); return true; };
-document.addEventListener('visibilitychange', () => { if (document.hidden && scene && scene.autoPause) scene.autoPause(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (scene && scene.autoPause) scene.autoPause(); Voice.stop(); if (AC) AC.suspend().catch(() => {}); }
+  else if (AC) AC.resume().catch(() => {});
+});
 
 /* ---------------- layout ---------------- */
 let rotateDismissed = false;
@@ -195,22 +291,43 @@ addEventListener('resize', resize);
    CHARACTERS
    ===================================================================== */
 const SKIN = '#EBBE98', SKIN_D = '#D9A47C', HAIR = '#1C1A22', INK = '#1B2A4A';
-const NAVY = '#1F3B73', SLEEVE = '#5BB8E8';
+// Hridu's outfits (chosen in Settings). Space suit is drawn from his real top.
+const OUTFITS = [
+  { id: 'space', name: 'Space suit', body: '#1F3B73', sleeve: '#5BB8E8', trim: '#5BB8E8', zip: '#4E6FA8', badge: 'star' },
+  { id: 'pilot', name: 'Pilot jacket', body: '#8A5A2B', sleeve: '#7A4A1E', trim: '#E9C79E', zip: '#5E3A18', scarf: '#FFFFFF' },
+  { id: 'hero', name: 'Superhero', body: '#E4572E', sleeve: '#E4572E', trim: '#FFC21A', cape: '#2F6FD0', badge: 'H' },
+  { id: 'cricket', name: 'Cricket kit', body: '#1E5AA8', sleeve: '#1E5AA8', trim: '#FF9F1C', number: '18' },
+  { id: 'kurta', name: 'Festive kurta', body: '#F2B700', sleeve: '#F2B700', trim: '#C9401F', long: true, dots: '#C9401F' },
+  { id: 'explorer', name: 'Explorer', body: '#C9A86A', sleeve: '#B8955A', trim: '#8A6A3A', pockets: true },
+  { id: 'dino', name: 'Dino hoodie', body: '#4FB06A', sleeve: '#4FB06A', trim: '#3E8E55', hood: true },
+];
+const outfit = () => OUTFITS.find(x => x.id === save.outfit) || OUTFITS[0];
 
 // Hridu: (x,y) is the centre of his head. Round cheeky face, big curly black
 // hair with short sides, bold brows, navy zip-up top with sky-blue sleeves.
 function drawHridu(x, y, s, o) {
   o = o || {}; ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  const of = o.outfit || outfit();
   if (o.body !== false) {
     ctx.lineCap = 'round';
+    if (of.cape) { const fl = Math.sin(T * 6) * 4; ctx.fillStyle = of.cape; ctx.beginPath(); ctx.moveTo(-20, 22); ctx.lineTo(20, 22); ctx.lineTo(32 + fl, 82); ctx.lineTo(-32 - fl, 82); ctx.closePath(); ctx.fill(); }
     const lHand = o.wave ? [-36, -12 + Math.sin(T * 10) * 8] : [-32, 54];
     const rHand = o.cheer ? [36, -10 + Math.sin(T * 9) * 6] : [30, 54];
-    line(-17, 32, lHand[0], lHand[1], SLEEVE, 11); circle(lHand[0], lHand[1], 6, SKIN);
-    line(17, 32, rHand[0], rHand[1], SLEEVE, 11); circle(rHand[0], rHand[1], 6, SKIN);
-    fillRR(-23, 20, 46, 48, 15, NAVY);
-    fillRR(-23, 20, 46, 8, 4, SLEEVE);
-    line(0, 26, 0, 64, '#4E6FA8', 2.5);
-    drawStar(12, 50, 5, '#FFC21A');
+    line(-17, 32, lHand[0], lHand[1], of.sleeve, 11); circle(lHand[0], lHand[1], 6, SKIN);
+    line(17, 32, rHand[0], rHand[1], of.sleeve, 11); circle(rHand[0], rHand[1], 6, SKIN);
+    fillRR(-23, 20, 46, of.long ? 60 : 48, 15, of.body);
+    fillRR(-23, 20, 46, 8, 4, of.trim);
+    if (of.zip) line(0, 26, 0, 64, of.zip, 2.5);
+    if (of.badge === 'star') drawStar(12, 50, 5, '#FFC21A');
+    if (of.badge === 'H') { circle(0, 44, 11, of.trim); text('H', 0, 45, 15, of.body, 'center', 700); }
+    if (of.number) { text(of.number, 0, 46, 18, '#FFFFFF', 'center', 700); fillRR(-23, 62, 46, 5, 2, of.trim); }
+    if (of.dots) { line(0, 26, 0, 46, of.dots, 2); for (let k = 0; k < 4; k++) circle(0, 30 + k * 6, 1.8, '#FFFFFF'); fillRR(-23, 72, 46, 6, 3, of.trim); }
+    if (of.pockets) { fillRR(-18, 36, 13, 11, 3, of.trim); fillRR(5, 36, 13, 11, 3, of.trim); }
+    if (of.scarf) { const fl = Math.sin(T * 7) * 5; fillRR(-15, 17, 30, 9, 4, of.scarf); ctx.fillStyle = of.scarf; ctx.beginPath(); ctx.moveTo(-10, 22); ctx.quadraticCurveTo(-26, 30 + fl, -38, 26 + fl); ctx.lineTo(-36, 34 + fl); ctx.quadraticCurveTo(-24, 38, -6, 26); ctx.closePath(); ctx.fill(); }
+  }
+  if (of.hood && o.body !== false) {
+    ell(0, -2, 32, 31, of.body);
+    ctx.fillStyle = '#FFC21A'; for (let k = 0; k < 5; k++) { const a = Math.PI * (1.15 + k * 0.175), x0 = Math.cos(a) * 31, y0 = Math.sin(a) * 30 - 2; ctx.beginPath(); ctx.moveTo(x0 - 6, y0 + 2); ctx.lineTo(x0 * 1.28, y0 * 1.28 - 2); ctx.lineTo(x0 + 6, y0 + 2); ctx.closePath(); ctx.fill(); }
   }
   // short sides + ears
   ell(-22, -4, 5, 9, HAIR); ell(22, -4, 5, 9, HAIR);
@@ -530,18 +647,27 @@ function drawPortrait(who, x, y, mood) {
   else if (who === 'kanta') { ctx.save(); ctx.translate(x - 30, y + 100); ctx.scale(0.95, 0.95); drawCamel(0, true); ctx.restore(); }
 }
 
+function drawSpeaker(x, y, c) {
+  ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x - 14, y - 7); ctx.lineTo(x - 6, y - 7); ctx.lineTo(x + 4, y - 15); ctx.lineTo(x + 4, y + 15); ctx.lineTo(x - 6, y + 7); ctx.lineTo(x - 14, y + 7); ctx.closePath(); ctx.fill();
+  for (let k = 0; k < 3; k++) { ctx.globalAlpha = ((T * 3 + k) % 3) < 2 ? 1 : 0.25; ctx.beginPath(); ctx.arc(x + 6, y, 8 + k * 7, -0.7, 0.7); ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+// Story cards: every line is read aloud and can't be skipped — OK/tap only
+// works once the voice (or, with no voice, normal reading time) is finished.
 class Story {
-  constructor(lines, theme, next, opts) { this.lines = lines; this.theme = theme; this.next = next; this.i = 0; this.chars = 0; this.opts = opts || {}; this.off = 0; }
+  constructor(lines, theme, next, opts) { this.lines = lines; this.theme = theme; this.next = next; this.i = 0; this.opts = opts || {}; this.off = 0; this.startLine(); }
   get cur() { return this.lines[this.i]; }
+  startLine() { this.chars = 0; this.lineT = T; Voice.say(this.cur.text, this.cur.who); }
+  get ready() { return this.chars >= this.cur.text.length && Voice.done(); }
   advance() {
-    const full = this.cur.text.length;
-    if (this.chars < full) { this.chars = full; return; }
+    if (!this.ready) return;
     SFX.move();
-    if (this.i < this.lines.length - 1) { this.i++; this.chars = 0; } else this.next();
+    if (this.i < this.lines.length - 1) { this.i++; this.startLine(); } else { Voice.stop(); this.next(); }
   }
-  onAction(a) { if (a === 'ok' || a === 'right' || a === 'down') this.advance(); else if (a === 'back') { if (this.opts.onBack) this.opts.onBack(); else this.next(); } }
+  // Back only leaves a level's intro (back to the map); it never skips story.
+  onAction(a) { if (a === 'ok' || a === 'right' || a === 'down') this.advance(); else if (a === 'back' && this.opts.onBack) { Voice.stop(); this.opts.onBack(); } }
   onTap() { this.advance(); }
-  update(dt) { this.chars += dt * 42; this.off += dt * 40; }
+  update(dt) { const len = this.cur.text.length; this.chars = Math.min(len, this.chars + dt * len / Math.max(1.2, Voice.est * 0.85)); this.off += dt * 40; }
   draw() {
     drawBG(this.theme, this.off, 'run');
     if (this.theme === 'ending') { const fr = ['giraffe', 'lion', 'elephant', 'penguin', 'panda', 'monkey']; fr.forEach((f, i) => drawFriend(f, 130 + i * 90, 400 + (i % 2) * 14, 1, true)); drawGrumble(1000, 150, 0.9, 'happy'); }
@@ -559,7 +685,8 @@ class Story {
     const shown = L.text.slice(0, Math.floor(this.chars));
     const lines = wrapLines(shown, W - 120 - 330 - 40, 34, 600);
     lines.forEach((ln, k) => text(ln, 330, 530 + k * 44, 34, INK, 'left', 600));
-    if (this.chars >= L.text.length && (T % 1) < 0.7) text(usingTouch ? 'Tap ▶' : 'OK ▶', W - 110, 650, 26, '#B13A16', 'right', 700);
+    if (this.ready) { if ((T % 1) < 0.7) text(usingTouch ? 'Tap ▶' : 'OK ▶', W - 110, 650, 26, '#B13A16', 'right', 700); }
+    else { drawSpeaker(W - 212, 648, '#2F6FD0'); text('Listen…', W - 110, 650, 22, '#2F6FD0', 'right', 700); }
     text(`${this.i + 1} / ${this.lines.length}`, 330, 650, 20, '#6B7590', 'left', 600);
   }
 }
@@ -578,6 +705,7 @@ function drawShape(kind, x, y, r, c) {
   else if (kind === 'heart') drawHeart(x, y + r * 0.2, r * 1.1, c);
   else { ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.8, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.8, y); ctx.closePath(); ctx.fill(); }
 }
+const COLOR_NAME = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [v, k]));
 const SHAPE_WORD = { circle: 'circles', square: 'squares', triangle: 'triangles', star: 'stars', heart: 'hearts', diamond: 'diamonds' };
 function numOptions(ans, spread) {
   const s = new Set([ans]);
@@ -754,17 +882,28 @@ class PitStop {
     this.i = 0; this.state = 'intro'; this.firstTry = 0; this.timer = 0; this.shake = 0;
     this.isRoot = false;
     this.resetQ();
+    Voice.say('Puzzle Pit Stop! Zippy needs brain fuel. Solve one math problem and one puzzle to keep playing!', 'hoot');
   }
   resetQ() { this.sel = 0; this.wrong = new Set(); this.tries = 0; this.feedback = ''; this.typed = ''; this.pad = 0; }
+  // Read the question out; answering unlocks once it has been read.
+  readQ() {
+    const q = this.q; let t = q.prompt;
+    const v = q.visual;
+    if (v && v.kind === 'seq') t += ' ' + v.items.filter(x => x !== '?').join(', ') + ', and then what?';
+    if (v && v.kind === 'shapes') t += ' ' + v.items.filter(Boolean).map(it => (COLOR_NAME[it.color] || '') + ' ' + it.shape).join(', ') + ', and then?';
+    if (!this.entry && q.options.every(o => o.text) && !/^\d+$/.test(q.options[0].text)) t += ' Is it ' + q.options.slice(0, -1).map(o => o.text.toLowerCase()).join(', ') + ', or ' + q.options[q.options.length - 1].text.toLowerCase() + '?';
+    Voice.say(t, 'hoot'); this.listening = true;
+  }
+  get locked() { return this.state === 'q' && this.listening; }
   get q() { return this.qs[this.i]; }
   get entry() { return this.q.cat === 'Math'; }
   get wantsDel() { return this.state === 'q' && this.entry; }
   optRects() { const n = this.q.options.length, w = 236, g = 28, tot = n * w + (n - 1) * g, x0 = (W - tot) / 2; return this.q.options.map((o, k) => ({ x: x0 + k * (w + g), y: 488, w, h: 150 })); }
   padRects() { return PAD.map((k, i) => ({ x: 776 + (i % 3) * 140, y: 186 + Math.floor(i / 3) * 112, w: 124, h: 96 })); }
   onAction(a) {
-    if (this.state === 'intro') { if (a === 'ok') { this.state = 'q'; SFX.move(); } return; }
-    if (this.state === 'done') { if (a === 'ok') this.finish(); return; }
-    if (this.state !== 'q') return;
+    if (this.state === 'intro') { if (a === 'ok' && Voice.done()) { this.state = 'q'; SFX.move(); this.readQ(); } return; }
+    if (this.state === 'done') { if (a === 'ok' && Voice.done()) this.finish(); return; }
+    if (this.state !== 'q' || this.locked) return;
     if (this.entry) {
       const r = Math.floor(this.pad / 3), c = this.pad % 3;
       if (a === 'left' && c > 0) { this.pad--; SFX.move(); }
@@ -779,7 +918,7 @@ class PitStop {
     else if (a === 'right' || a === 'down') { this.moveSel(1); }
     else if (a === 'ok') this.answer(this.sel);
   }
-  onDigit(d) { if (this.state === 'q' && this.entry) { this.pad = PAD.indexOf(d); this.press(d); } }
+  onDigit(d) { if (this.state === 'q' && this.entry && !this.locked) { this.pad = PAD.indexOf(d); this.press(d); } }
   press(k) {
     if (this.state !== 'q') return;
     if (k === 'del') { if (this.typed) { this.typed = this.typed.slice(0, -1); SFX.move(); } return; }
@@ -794,12 +933,13 @@ class PitStop {
     if (Number(this.typed) === this.q.value) { this.correct(); return; }
     SFX.bad(); this.shake = 0.4; this.typed = ''; this.pad = 0;
     this.feedback = this.tries >= 3 ? `The answer is ${this.q.value}. Type ${this.q.value} and press ✓ to keep going!` : 'Nearly! Hint: ' + this.q.hint;
+    Voice.say(this.feedback.replace('Hint:', ''), 'hoot');
   }
-  correct() { SFX.ok(); if (this.tries === 1) this.firstTry++; this.state = 'right'; this.timer = 1.6; this.feedback = pick(['Brilliant!', 'Super, Hridu!', 'You got it!', 'Wow, smart thinking!', 'Hoo-hoo! Correct!']); save.solved++; persist(); }
+  correct() { SFX.ok(); if (this.tries === 1) this.firstTry++; this.state = 'right'; this.timer = 1.8; this.feedback = pick(['Brilliant!', 'Super, Hridu!', 'You got it!', 'Wow, smart thinking!', 'Hoo-hoo! Correct!']); Voice.say(this.feedback, 'hoot'); save.solved++; persist(); }
   moveSel(d) { const n = this.q.options.length; let s = this.sel; for (let k = 0; k < n; k++) { s = (s + d + n) % n; if (!this.wrong.has(s)) break; } this.sel = s; SFX.move(); }
   onTap(x, y) {
     if (this.state === 'intro' || this.state === 'done') { this.onAction('ok'); return; }
-    if (this.state !== 'q') return;
+    if (this.state !== 'q' || this.locked) return;
     const hit = r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
     if (this.entry) { this.padRects().forEach((r, i) => { if (hit(r)) { this.pad = i; this.press(PAD[i]); } }); return; }
     this.optRects().forEach((r, k) => { if (hit(r)) { this.sel = k; this.answer(k); } });
@@ -808,11 +948,12 @@ class PitStop {
     if (this.wrong.has(k)) return;
     this.tries++;
     if (k === this.q.ans) this.correct();
-    else { SFX.bad(); this.wrong.add(k); this.shake = 0.4; this.feedback = 'Nearly! Hint: ' + this.q.hint; this.moveSel(1); }
+    else { SFX.bad(); this.wrong.add(k); this.shake = 0.4; this.feedback = 'Nearly! Hint: ' + this.q.hint; Voice.say('Nearly! ' + this.q.hint, 'hoot'); this.moveSel(1); }
   }
   update(dt) {
     this.shake = Math.max(0, this.shake - dt);
-    if (this.state === 'right') { this.timer -= dt; if (this.timer <= 0) { if (this.i < this.qs.length - 1) { this.i++; this.state = 'q'; this.resetQ(); } else { this.state = 'done'; this.bonus = this.firstTry * 5; SFX.win(); } } }
+    if (this.listening && Voice.done()) this.listening = false;
+    if (this.state === 'right') { this.timer -= dt; if (this.timer <= 0 && Voice.done()) { if (this.i < this.qs.length - 1) { this.i++; this.state = 'q'; this.resetQ(); this.readQ(); } else { this.state = 'done'; this.bonus = this.firstTry * 5; SFX.win(); Voice.say('Fuel tank full! ' + (this.bonus ? `You got ${this.bonus} bonus stars!` : '') + ' Back to the adventure!', 'zippy'); } } }
   }
   finish() { this.play.score += this.bonus || 0; this.play.countdown = 2.2; scene = this.play; }
   draw() {
@@ -822,14 +963,15 @@ class PitStop {
       drawOwl(640, 250, 2.1);
       fillRR(W / 2 - 360, 400, 720, 70, 35, '#FFC21A'); text('Puzzle Pit Stop!', W / 2, 436, 44, INK, 'center', 700);
       text('Zippy needs brain fuel. Solve 1 math problem + 1 puzzle to keep playing!', W / 2, 520, 30, '#FFFFFF', 'center', 600);
-      if ((T % 1) < 0.7) text(usingTouch ? 'Tap to start' : 'Press OK to start', W / 2, 600, 28, '#FFE88A', 'center', 700);
+      if (!Voice.done()) { drawSpeaker(W / 2 - 84, 598, '#FFE88A'); text('Listen…', W / 2 + 20, 600, 28, '#FFE88A', 'center', 700); }
+      else if ((T % 1) < 0.7) text(usingTouch ? 'Tap to start' : 'Press OK to start', W / 2, 600, 28, '#FFE88A', 'center', 700);
       return;
     }
     if (this.state === 'done') {
       drawPlane(640, 250, { s: 1.4, wave: true });
       text('Fuel tank full!', W / 2, 420, 64, '#FFFFFF', 'center', 700);
       text(this.bonus ? `First-try bonus: +${this.bonus} stars` : 'Great trying! Back to the adventure.', W / 2, 490, 32, '#FFE88A', 'center', 600);
-      if ((T % 1) < 0.7) text(usingTouch ? 'Tap to keep playing' : 'Press OK to keep playing', W / 2, 580, 30, '#FFFFFF', 'center', 700);
+      if (Voice.done() && (T % 1) < 0.7) text(usingTouch ? 'Tap to keep playing' : 'Press OK to keep playing', W / 2, 580, 30, '#FFFFFF', 'center', 700);
       return;
     }
     const q = this.q;
@@ -875,7 +1017,8 @@ class PitStop {
       const h = 18 + fl.length * 32;
       fillRR(W / 2 - 560, H - 8 - h, 1120, h, 20, ok ? '#2E9C5B' : '#FFFFFF');
       fl.forEach((ln, k) => text(ln, W / 2, H - 8 - h + 25 + k * 32, 26, ok ? '#FFFFFF' : INK, 'center', 700));
-    } else text(usingTouch ? 'Tap your answer' : '◀ ▶ to choose · OK to answer', W / 2, 676, 26, '#D5DDF2', 'center', 600);
+    } else if (this.locked) { drawSpeaker(W / 2 - 92, 674, '#FFE88A'); text('Listen…', W / 2 + 10, 676, 26, '#FFE88A', 'center', 700); }
+    else text(usingTouch ? 'Tap your answer' : '◀ ▶ to choose · OK to answer', W / 2, 676, 26, '#D5DDF2', 'center', 600);
   }
   drawEntry(q, sx) {
     const cx = 390, right = this.state === 'right';
@@ -896,7 +1039,8 @@ class PitStop {
       const fl = wrapLines(this.feedback, 600, 26, 700), h = 24 + fl.length * 34;
       fillRR(cx - 320, 512, 640, h, 22, right ? '#2E9C5B' : '#FFFFFF');
       fl.forEach((ln, k) => text(ln, cx, 512 + 30 + k * 34, 26, right ? '#FFFFFF' : INK, 'center', 700));
-    } else text(usingTouch ? 'Tap the numbers, then ✓' : 'Type the answer, or use ◀ ▶ ▲ ▼ and OK', cx, 540, 26, '#D5DDF2', 'center', 600);
+    } else if (this.locked) { drawSpeaker(cx - 92, 538, '#FFE88A'); text('Listen…', cx + 10, 540, 26, '#FFE88A', 'center', 700); }
+    else text(usingTouch ? 'Tap the numbers, then ✓' : 'Type the answer, or use ◀ ▶ ▲ ▼ and OK', cx, 540, 26, '#D5DDF2', 'center', 600);
     // number pad
     this.padRects().forEach((r, i) => {
       const k = PAD[i], sel = i === this.pad && this.state === 'q';
@@ -1189,7 +1333,7 @@ function levelComplete(play) {
   scene = new LevelDone(play, stars);
 }
 class LevelDone {
-  constructor(play, stars) { this.play = play; this.stars = stars; this.t = 0; this.isRoot = false; SFX.win(); }
+  constructor(play, stars) { this.play = play; this.stars = stars; this.t = 0; this.isRoot = false; SFX.win(); Voice.say(`Level complete! You got ${stars} star${stars > 1 ? 's' : ''}!`, 'zippy'); }
   onAction(a) { if (a === 'ok' || a === 'back') this.go(); }
   onTap() { this.go(); }
   go() {
@@ -1279,20 +1423,18 @@ class MapScene {
 
 class Title {
   constructor() { this.sel = 0; this.isRoot = true; this.off = 0; }
-  items() { const it = ['Play', `Puzzle every: ${save.interval} min`, `Sound: ${save.sound ? 'On' : 'Off'}`]; if (canInstall()) it.push('Install as an app'); return it; }
-  rects() { return this.items().map((s, k) => ({ x: W / 2 - 230, y: 386 + k * 76 + (k ? 6 : 0), w: 460, h: k === 0 ? 70 : 60 })); }
-  choose(k, dir) {
+  items() { const it = ['Play', 'Settings']; if (canInstall()) it.push('Install as an app'); return it; }
+  rects() { return this.items().map((s, k) => ({ x: W / 2 - 230, y: 400 + k * 86 + (k ? 6 : 0), w: 460, h: k === 0 ? 76 : 66 })); }
+  choose(k) {
     SFX.move();
-    if (k === 0) { if (!save.seenIntro) { save.seenIntro = true; persist(); scene = new Story(PROLOGUE, 'meadow', () => goMap(1), { title: "Hridu's Great Rescue", kicker: 'The story begins', onBack: () => goMap(1) }); } else goMap(); }
-    else if (k === 1) { const opts = [3, 5]; let i = opts.indexOf(save.interval); i = (i + (dir || 1) + opts.length) % opts.length; save.interval = opts[i]; save.clock = Math.min(save.clock, save.interval * 60 - 5); persist(); }
-    else if (k === 2) { save.sound = !save.sound; persist(); }
+    if (k === 0) { if (!save.seenIntro) { save.seenIntro = true; persist(); scene = new Story(PROLOGUE, 'meadow', () => goMap(1), { title: "Hridu's Great Rescue", kicker: 'The story begins' }); } else goMap(); }
+    else if (k === 1) scene = new Settings();
     else installApp(this);
   }
   onAction(a) {
     const n = this.items().length;
     if (a === 'up') { this.sel = (this.sel + n - 1) % n; SFX.move(); }
     else if (a === 'down') { this.sel = (this.sel + 1) % n; SFX.move(); }
-    else if ((a === 'left' || a === 'right') && this.sel === 1) this.choose(1, a === 'left' ? -1 : 1);
     else if (a === 'ok') this.choose(this.sel);
   }
   onTap(x, y) { this.rects().forEach((r, k) => { if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) { this.sel = k; this.choose(k); } }); }
@@ -1308,15 +1450,72 @@ class Title {
     this.rects().forEach((r, k) => {
       if (k === this.sel) fillRR(r.x - 8, r.y - 8, r.w + 16, r.h + 16, 30, '#FFC21A');
       fillRR(r.x, r.y, r.w, r.h, 24, k === 0 ? '#2E9C5B' : '#FFFFFF');
-      text(this.items()[k], W / 2, r.y + r.h / 2 + 1, k === 0 ? 40 : 28, k === 0 ? '#FFFFFF' : INK, 'center', 700);
-      if (k === 1 && this.sel === 1 && !usingTouch) { text('◀', r.x + 30, r.y + r.h / 2, 24, INK, 'center', 700); text('▶', r.x + r.w - 30, r.y + r.h / 2, 24, INK, 'center', 700); }
+      text(this.items()[k], W / 2, r.y + r.h / 2 + 1, k === 0 ? 42 : 30, k === 0 ? '#FFFFFF' : INK, 'center', 700);
     });
     if (this.toast && this.toastT > T) {
       const tl = wrapLines(this.toast, 980, 26, 700), th = 30 + tl.length * 34;
       fillRR(W / 2 - 520, 236, 1040, th, 22, INK);
       tl.forEach((ln, k) => text(ln, W / 2, 236 + 32 + k * 34, 26, '#FFFFFF', 'center', 700));
     }
-    text('For grown-ups: puzzles pop up after this much play time.', W / 2, 704, 16, 'rgba(27,42,74,0.75)', 'center', 600);
+  }
+}
+
+// Settings: Hridu picks his outfit (big preview); grown-ups set the puzzle
+// timer (3 or 5 min), sound effects and music.
+class Settings {
+  constructor() { this.sel = 0; this.isRoot = false; }
+  rows() { return [
+    { id: 'outfit', label: 'Outfit', value: outfit().name },
+    { id: 'interval', label: 'Puzzle every', value: `${save.interval} min` },
+    { id: 'sound', label: 'Sound effects', value: save.sound ? 'On' : 'Off' },
+    { id: 'music', label: 'Music', value: save.music ? 'On' : 'Off' },
+    { id: 'done', label: 'Done', value: '' },
+  ]; }
+  rects() { return this.rows().map((r, k) => ({ x: 650, y: 150 + k * 100, w: 560, h: 80 })); }
+  change(id, dir) {
+    if (id === 'outfit') { const i = OUTFITS.findIndex(x => x.id === save.outfit); const n = OUTFITS[(Math.max(0, i) + dir + OUTFITS.length) % OUTFITS.length]; save.outfit = n.id; Voice.say(n.name, 'hridu'); }
+    else if (id === 'interval') { save.interval = save.interval === 3 ? 5 : 3; save.clock = Math.min(save.clock, save.interval * 60 - 5); }
+    else if (id === 'sound') save.sound = !save.sound;
+    else if (id === 'music') save.music = !save.music;
+    else if (id === 'done') { scene = new Title(); scene.sel = 1; return; }
+    SFX.move(); persist();
+  }
+  onAction(a) {
+    const rows = this.rows(), n = rows.length, id = rows[this.sel].id;
+    if (a === 'up') { this.sel = (this.sel + n - 1) % n; SFX.move(); }
+    else if (a === 'down') { this.sel = (this.sel + 1) % n; SFX.move(); }
+    else if ((a === 'left' || a === 'right') && id !== 'done') this.change(id, a === 'left' ? -1 : 1);
+    else if (a === 'ok') this.change(id, 1);
+    else if (a === 'back') { scene = new Title(); scene.sel = 1; }
+  }
+  onTap(x, y) {
+    if (y > 470 && y < 600 && x > 60 && x < 160) { this.sel = 0; this.change('outfit', -1); return; }
+    if (y > 470 && y < 600 && x > 480 && x < 580) { this.sel = 0; this.change('outfit', 1); return; }
+    this.rects().forEach((r, k) => { if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) { this.sel = k; this.change(this.rows()[k].id, 1); } });
+  }
+  update() {}
+  draw() {
+    drawBG('meadow', T * 30, 'run');
+    fillRR(40, 30, 1200, 660, 36, 'rgba(255,255,255,0.93)');
+    text('Settings', 340, 90, 48, INK, 'center', 700);
+    // outfit preview
+    fillRR(80, 140, 520, 470, 30, '#EAF6FF');
+    drawHridu(340, 260, 2.6, { wave: true });
+    ctx.font = font(34, 700); text(outfit().name, 340, 560, 34, INK, 'center', 700);
+    for (const [ax, ch] of [[110, '◀'], [570, '▶']]) { circle(ax, 540, 34, this.sel === 0 ? '#FFC21A' : '#DCE4F0'); text(ch, ax, 542, 30, INK, 'center', 700); }
+    text(`${OUTFITS.findIndex(x => x.id === save.outfit) + 1} of ${OUTFITS.length}`, 340, 596, 20, '#4A5672', 'center', 600);
+    // rows
+    const rows = this.rows();
+    this.rects().forEach((r, k) => {
+      const row = rows[k], sel = k === this.sel;
+      if (sel) fillRR(r.x - 8, r.y - 8, r.w + 16, r.h + 16, 30, '#FFC21A');
+      fillRR(r.x, r.y, r.w, r.h, 24, row.id === 'done' ? '#2E9C5B' : '#FFFFFF');
+      if (row.id === 'done') { text('Done', r.x + r.w / 2, r.y + r.h / 2 + 1, 34, '#FFFFFF', 'center', 700); return; }
+      text(row.label, r.x + 28, r.y + r.h / 2 + 1, 28, INK, 'left', 700);
+      text(row.value, r.x + r.w - (sel && !usingTouch ? 92 : 28), r.y + r.h / 2 + 1, 28, '#2F6FD0', 'right', 700);
+      if (sel && !usingTouch) { text('◀ ▶', r.x + r.w - 30, r.y + r.h / 2 + 1, 18, INK, 'right', 700); }
+    });
+    text('Grown-ups: the puzzle timer is how much play time before each Puzzle Pit Stop.', W / 2, 668, 18, '#4A5672', 'center', 600);
   }
 }
 
@@ -1354,6 +1553,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
   ctx.setTransform(K, 0, 0, K, 0, 0);
   try { if (scene.update) scene.update(dt); scene.draw(); } catch (e) { console.error(e); }
+  try { Music.want(scene instanceof PitStop ? 'think' : 'adventure'); } catch (e) {}
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

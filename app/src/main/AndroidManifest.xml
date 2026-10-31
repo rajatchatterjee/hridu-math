@@ -8,6 +8,13 @@
     <!-- Only used to load the rounded web font; the game works offline without it. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 11+: lets the app find the device's text-to-speech engine (voice-over). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:banner="@drawable/app_banner"
