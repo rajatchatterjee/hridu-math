@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TV home-screen banner (320x180dp): Zippy the red plane over green hills. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:pathData="M0,0h320v180h-320z" android:fillColor="#6EC3FA" />
+    <path android:pathData="M270,40m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0" android:fillColor="#FFD84D" />
+    <path android:pathData="M0,140 C60,110 120,112 170,135 C220,158 270,120 320,128 L320,180 L0,180 Z" android:fillColor="#5CAF5A" />
+    <path android:pathData="M78,92 L66,62 L86,62 L100,84 Z" android:fillColor="#E4572E" />
+    <path android:pathData="M70,95 C70,84 92,82 116,82 L176,82 C196,82 206,89 206,96 C206,104 196,110 176,110 L100,110 C82,110 70,105 70,95 Z" android:fillColor="#F26B45" />
+    <path android:pathData="M120,100 L152,100 L138,128 L116,128 Z" android:fillColor="#C9401F" />
+    <path android:pathData="M90,93 h30 v6 h-30 z" android:fillColor="#FFC21A" />
+    <path android:pathData="M184,92m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" android:fillColor="#FFFFFF" />
+    <path android:pathData="M186,92m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0" android:fillColor="#1B2A4A" />
+    <path android:pathData="M208,78 h5 v36 h-5 z" android:fillColor="#1B2A4A" />
+    <path android:pathData="M126,68m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0" android:fillColor="#1C1A22" />
+    <path android:pathData="M126,76m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0" android:fillColor="#EBBE98" />
+    <path android:pathData="M240,60 l5,10 11,1.5 -8,7.5 2,11 -10,-5.5 -10,5.5 2,-11 -8,-7.5 11,-1.5z" android:fillColor="#FFC21A" />
+</vector>
