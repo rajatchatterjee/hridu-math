@@ -1226,16 +1226,14 @@ function makeMath(b) {
   const o = numOptions(ans, 10);
   return { cat: 'Math', prompt: p, options: o.options, ans: o.ans, value: ans, hint, typed: true };
 }
-// A sum for the Number Gates / math-catch levels (they move, so keep them
-// EASY — Rajat's ask): two-digit +/−, no carrying/borrowing until the last
-// chapter, never two-step, and the wrong choices are 10 or 20 away so they
-// are easy to tell apart.
+// A sum for the Number Gates / math-catch levels. They move, so keep them
+// EASY (Rajat's ask): SINGLE digits only (1–9 + 1–9, or 9 − 3), never
+// two-step. The two-digit sums stay in the pit stops.
 function gateQuestion(level) {
-  const tricky = level >= 24 && Math.random() < 0.4; // last chapter: some carrying/borrowing
   let p, ans;
-  if (Math.random() < 0.55) { const [a, c] = twoDigitAdd(tricky ? 2 : 0); ans = a + c; p = `${a} + ${c}`; }
-  else { const [a, c] = twoDigitSub(tricky ? 2 : 0); ans = a - c; p = `${a} − ${c}`; }
-  const pool = shuffle([ans + 10, ans - 10, ans + 20, ans - 20].filter(v => v >= 10 && v <= 99));
+  if (Math.random() < 0.55) { const a = ri(1, 9), c = ri(1, 9); ans = a + c; p = `${a} + ${c}`; }
+  else { const a = ri(3, 9), c = ri(1, a - 1); ans = a - c; p = `${a} − ${c}`; }
+  const pool = shuffle([ans + 1, ans - 1, ans + 2, ans - 2, ans + 3].filter(v => v >= 0 && v !== ans));
   const opts = shuffle([ans, pool[0], pool[1]]);
   return { prompt: p, ans, opts };
 }
