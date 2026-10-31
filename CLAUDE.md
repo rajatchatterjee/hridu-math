@@ -3,8 +3,8 @@
 A kids' adventure game for Hridaan ("Hridu"). He flies Zippy the toy
 plane, rides animals and rescues zoo friends. After every few minutes of play
 (5 by default) a **Puzzle Pit Stop** pauses the game: one math question and one
-brain puzzle (pattern, odd-one-out, counting, opposites, what-comes-next),
-both multiple choice. Main target is Google TV / Android TV; the same game also
+brain puzzle (pattern, odd-one-out, counting, opposites, what-comes-next).
+Math is answered by TYPING the number; puzzles are multiple choice. Main target is Google TV / Android TV; the same game also
 runs in any browser on phones and laptops.
 
 ## Layout
@@ -50,11 +50,18 @@ runs in any browser on phones and laptops.
   a shuffled bag (number pattern, shape pattern, odd-one-out, counting,
   what-comes-next, opposites, biggest/smallest). If a small word pool runs dry
   it falls back to an endless kind (number/shape patterns, counting).
-- Wrong answers show a hint and grey out that choice; first-try answers give
-  bonus stars. Pit stops can't be skipped.
+- Math answers are typed (Rajat's rule: no multiple choice for math): two
+  answer boxes + an on-screen 3x4 number pad (1–9, ⌫, 0, ✓). TV: D-pad moves
+  around the pad, OK presses, remote number keys and Back (deletes a digit)
+  also work. Laptop: type digits, Backspace, Enter. Phone: tap the pad.
+  Focus jumps to ✓ after two digits. Wrong → hint and the boxes clear; after
+  3 wrong tries the answer is shown so a kid can never get stuck.
+- Puzzles: wrong answers show a hint and grey out that choice. First-try
+  answers (math or puzzle) give bonus stars. Pit stops can't be skipped.
 - Progress, stars, play-clock and settings persist in localStorage
   (`hridu-math-v1`). Title screen has a grown-up setting for the puzzle
-  interval (3/5/8/10 min) and sound.
+  interval — ONLY 3 or 5 min (Rajat's rule; older saves with 8/10 reset to 5)
+  — and sound.
 - Test URL params: `?break=30` (puzzle every 30 s), `?level=N` (unlock to N).
 
 ## Install on the TV
@@ -78,6 +85,8 @@ APK link from the latest Release:
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Math answers are now typed on a number pad (no MCQ for
+  math); puzzle interval limited to 3 or 5 min.
 - 2026-10-31: Web game now lives at `/hridu-great-rescue.html` (Rajat's ask);
   old folder address redirects; installed app starts there.
 - 2026-10-31: Age removed from story/docs. Web build is now an installable

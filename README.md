@@ -13,5 +13,5 @@ plane before play continues.
 Controls: arrows + OK on the TV remote or keyboard, Back/Esc to pause.
 On phones, use the on-screen buttons.
 
-Grown-ups can change how often puzzles appear (3, 5, 8 or 10 minutes) on the
+Grown-ups can change how often puzzles appear (every 3 or 5 minutes) on the
 title screen.

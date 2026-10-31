@@ -52,6 +52,7 @@ try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 const params = new URLSearchParams(location.search);
 const BREAK_OVERRIDE = +params.get('break') || 0;
+if (save.interval !== 3 && save.interval !== 5) save.interval = 5; // only 3 or 5 min allowed
 const breakEvery = () => BREAK_OVERRIDE || save.interval * 60;
 if (+params.get('level')) save.unlocked = Math.max(save.unlocked, Math.min(8, +params.get('level')));
 
@@ -113,15 +114,27 @@ const SFX = {
 
 /* ---------------- input ---------------- */
 const held = { up: false, down: false };
-const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Enter: 'ok', NumpadEnter: 'ok', Space: 'ok', ' ': 'ok', Escape: 'back', Backspace: 'back', KeyP: 'back', GoBack: 'back', BrowserBack: 'back' };
-const CODEMAP = { 38: 'up', 40: 'down', 37: 'left', 39: 'right', 13: 'ok', 32: 'ok', 27: 'back', 8: 'back', 19: 'up', 20: 'down', 21: 'left', 22: 'right', 23: 'ok', 66: 'ok', 4: 'back' };
+const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Enter: 'ok', NumpadEnter: 'ok', Space: 'ok', ' ': 'ok', Escape: 'back', Backspace: 'del', KeyP: 'back', GoBack: 'back', BrowserBack: 'back' };
+const CODEMAP = { 38: 'up', 40: 'down', 37: 'left', 39: 'right', 13: 'ok', 32: 'ok', 27: 'back', 8: 'del', 19: 'up', 20: 'down', 21: 'left', 22: 'right', 23: 'ok', 66: 'ok', 4: 'back' };
 const keyAction = e => KEYMAP[e.code] || KEYMAP[e.key] || CODEMAP[e.keyCode] || null;
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 let usingTouch = isTouch;
 let scene = null;
-function act(a) { if (scene && scene.onAction) scene.onAction(a); }
+function act(a) {
+  if (a === 'del' && !(scene && scene.wantsDel)) a = 'back';
+  if (scene && scene.onAction) scene.onAction(a);
+}
+// Number keys (keyboard, numpad, or number buttons on a TV remote).
+function digitOf(e) {
+  if (/^[0-9]$/.test(e.key)) return e.key;
+  if (e.keyCode >= 48 && e.keyCode <= 57) return String(e.keyCode - 48);
+  if (e.keyCode >= 96 && e.keyCode <= 105) return String(e.keyCode - 96);
+  return null;
+}
 
 addEventListener('keydown', e => {
+  const dg = digitOf(e);
+  if (dg !== null) { if (scene && scene.onDigit) { e.preventDefault(); audio(); usingTouch = false; if (!e.repeat) scene.onDigit(dg); } return; }
   const a = keyAction(e); if (!a) return;
   e.preventDefault(); audio(); usingTouch = false;
   if (a === 'up' || a === 'down') { const was = held[a]; held[a] = true; if (was && e.repeat && scene && scene.holdOnly) return; }
@@ -631,7 +644,7 @@ function makeMath(b) {
     else { p = pick(SUB_STORIES)(a, c); ans = diff; hint = `That's ${a} − ${c}. ` + how; }
   }
   const o = numOptions(ans, 10);
-  return { cat: 'Math', prompt: p, options: o.options, ans: o.ans, hint };
+  return { cat: 'Math', prompt: p, options: o.options, ans: o.ans, value: ans, hint };
 }
 
 const ODD = [
@@ -729,40 +742,77 @@ function makePuzzle(b, t) {
   return { cat: 'Puzzle', prompt: `Which number is the ${big ? 'BIGGEST' : 'SMALLEST'}?`, options: arr.map(v => ({ text: String(v) })), ans: arr.indexOf(target), hint: max > 20 ? 'Look at the tens first. More tens = bigger.' : 'Count up from 1. Which comes last?' };
 }
 
+// Math questions: Hridu types the answer (two answer boxes + an on-screen
+// number pad he can drive with the D-pad, number keys, or by tapping).
+// Brain puzzles stay multiple choice.
+const PAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'go'];
 class PitStop {
   constructor(play) {
     this.play = play; const b = band(play.L.n);
     const pt = nextPuzzleType();
     this.qs = [freshQuestion(() => makeMath(b)), freshQuestion(() => makePuzzle(b, pt), () => makePuzzle(b, pick(['numSeq', 'shapeSeq', 'count', 'biggest'])))];
-    this.i = 0; this.state = 'intro'; this.sel = 0; this.wrong = new Set(); this.firstTry = 0; this.tries = 0; this.timer = 0; this.shake = 0; this.feedback = '';
+    this.i = 0; this.state = 'intro'; this.firstTry = 0; this.timer = 0; this.shake = 0;
     this.isRoot = false;
+    this.resetQ();
   }
+  resetQ() { this.sel = 0; this.wrong = new Set(); this.tries = 0; this.feedback = ''; this.typed = ''; this.pad = 0; }
   get q() { return this.qs[this.i]; }
+  get entry() { return this.q.cat === 'Math'; }
+  get wantsDel() { return this.state === 'q' && this.entry; }
   optRects() { const n = this.q.options.length, w = 236, g = 28, tot = n * w + (n - 1) * g, x0 = (W - tot) / 2; return this.q.options.map((o, k) => ({ x: x0 + k * (w + g), y: 488, w, h: 150 })); }
+  padRects() { return PAD.map((k, i) => ({ x: 776 + (i % 3) * 140, y: 186 + Math.floor(i / 3) * 112, w: 124, h: 96 })); }
   onAction(a) {
     if (this.state === 'intro') { if (a === 'ok') { this.state = 'q'; SFX.move(); } return; }
     if (this.state === 'done') { if (a === 'ok') this.finish(); return; }
     if (this.state !== 'q') return;
-    const n = this.q.options.length;
+    if (this.entry) {
+      const r = Math.floor(this.pad / 3), c = this.pad % 3;
+      if (a === 'left' && c > 0) { this.pad--; SFX.move(); }
+      else if (a === 'right' && c < 2) { this.pad++; SFX.move(); }
+      else if (a === 'up' && r > 0) { this.pad -= 3; SFX.move(); }
+      else if (a === 'down' && r < 3) { this.pad += 3; SFX.move(); }
+      else if (a === 'ok') this.press(PAD[this.pad]);
+      else if (a === 'del' || a === 'back') this.press('del');
+      return;
+    }
     if (a === 'left' || a === 'up') { this.moveSel(-1); }
     else if (a === 'right' || a === 'down') { this.moveSel(1); }
     else if (a === 'ok') this.answer(this.sel);
   }
+  onDigit(d) { if (this.state === 'q' && this.entry) { this.pad = PAD.indexOf(d); this.press(d); } }
+  press(k) {
+    if (this.state !== 'q') return;
+    if (k === 'del') { if (this.typed) { this.typed = this.typed.slice(0, -1); SFX.move(); } return; }
+    if (k === 'go') { this.submit(); return; }
+    if (this.typed.length >= 2) return;
+    this.typed += k; SFX.move();
+    if (this.typed.length === 2) this.pad = PAD.indexOf('go');
+  }
+  submit() {
+    if (!this.typed) { this.feedback = 'Type your answer first, then press ✓'; return; }
+    this.tries++;
+    if (Number(this.typed) === this.q.value) { this.correct(); return; }
+    SFX.bad(); this.shake = 0.4; this.typed = ''; this.pad = 0;
+    this.feedback = this.tries >= 3 ? `The answer is ${this.q.value}. Type ${this.q.value} and press ✓ to keep going!` : 'Nearly! Hint: ' + this.q.hint;
+  }
+  correct() { SFX.ok(); if (this.tries === 1) this.firstTry++; this.state = 'right'; this.timer = 1.6; this.feedback = pick(['Brilliant!', 'Super, Hridu!', 'You got it!', 'Wow, smart thinking!', 'Hoo-hoo! Correct!']); save.solved++; persist(); }
   moveSel(d) { const n = this.q.options.length; let s = this.sel; for (let k = 0; k < n; k++) { s = (s + d + n) % n; if (!this.wrong.has(s)) break; } this.sel = s; SFX.move(); }
   onTap(x, y) {
     if (this.state === 'intro' || this.state === 'done') { this.onAction('ok'); return; }
     if (this.state !== 'q') return;
-    this.optRects().forEach((r, k) => { if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) { this.sel = k; this.answer(k); } });
+    const hit = r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+    if (this.entry) { this.padRects().forEach((r, i) => { if (hit(r)) { this.pad = i; this.press(PAD[i]); } }); return; }
+    this.optRects().forEach((r, k) => { if (hit(r)) { this.sel = k; this.answer(k); } });
   }
   answer(k) {
     if (this.wrong.has(k)) return;
     this.tries++;
-    if (k === this.q.ans) { SFX.ok(); if (this.tries === 1) this.firstTry++; this.state = 'right'; this.timer = 1.6; this.feedback = pick(['Brilliant!', 'Super, Hridu!', 'You got it!', 'Wow, smart thinking!', 'Hoo-hoo! Correct!']); save.solved++; persist(); }
+    if (k === this.q.ans) this.correct();
     else { SFX.bad(); this.wrong.add(k); this.shake = 0.4; this.feedback = 'Nearly! Hint: ' + this.q.hint; this.moveSel(1); }
   }
   update(dt) {
     this.shake = Math.max(0, this.shake - dt);
-    if (this.state === 'right') { this.timer -= dt; if (this.timer <= 0) { if (this.i < this.qs.length - 1) { this.i++; this.state = 'q'; this.sel = 0; this.wrong = new Set(); this.tries = 0; this.feedback = ''; } else { this.state = 'done'; this.bonus = this.firstTry * 5; SFX.win(); } } }
+    if (this.state === 'right') { this.timer -= dt; if (this.timer <= 0) { if (this.i < this.qs.length - 1) { this.i++; this.state = 'q'; this.resetQ(); } else { this.state = 'done'; this.bonus = this.firstTry * 5; SFX.win(); } } }
   }
   finish() { this.play.score += this.bonus || 0; this.play.countdown = 2.2; scene = this.play; }
   draw() {
@@ -785,6 +835,8 @@ class PitStop {
     const q = this.q;
     drawOwl(110, 110, 0.9);
     pill(190, 52, 330, 52, '#FFC21A'); text(`${this.i + 1} of 2 · ${q.cat}`, 355, 79, 28, INK, 'center', 700);
+    const sx = this.shake > 0 ? Math.sin(this.shake * 60) * 10 : 0;
+    if (this.entry) { this.drawEntry(q, sx); return; }
     const big = !q.visual && q.prompt.length < 16;
     const pl = wrapLines(q.prompt, 1040, big ? 110 : 46, 700);
     const py = q.visual ? 170 : (big ? 300 : 300 - (pl.length - 1) * 28);
@@ -806,7 +858,6 @@ class PitStop {
         v.items.forEach(it => drawShape(it.shape, it.x, it.y, 24, it.color));
       }
     }
-    const sx = this.shake > 0 ? Math.sin(this.shake * 60) * 10 : 0;
     this.optRects().forEach((r, k) => {
       const o = q.options[k], isW = this.wrong.has(k), isSel = this.sel === k && this.state === 'q', isRight = this.state === 'right' && k === q.ans;
       const x = r.x + (isSel ? sx : 0);
@@ -820,10 +871,44 @@ class PitStop {
     });
     if (this.feedback) {
       const ok = this.state === 'right';
-      const fl = wrapLines(this.feedback, 1080, 28, 700);
-      fillRR(W / 2 - 560, 652, 1120, 22 + fl.length * 34, 22, ok ? '#2E9C5B' : '#FFFFFF');
-      fl.forEach((ln, k) => text(ln, W / 2, 680 + k * 34 - (fl.length - 1) * 4, 28, ok ? '#FFFFFF' : INK, 'center', 700));
+      const fl = wrapLines(this.feedback, 1080, 26, 700);
+      const h = 18 + fl.length * 32;
+      fillRR(W / 2 - 560, H - 8 - h, 1120, h, 20, ok ? '#2E9C5B' : '#FFFFFF');
+      fl.forEach((ln, k) => text(ln, W / 2, H - 8 - h + 25 + k * 32, 26, ok ? '#FFFFFF' : INK, 'center', 700));
     } else text(usingTouch ? 'Tap your answer' : '◀ ▶ to choose · OK to answer', W / 2, 676, 26, '#D5DDF2', 'center', 600);
+  }
+  drawEntry(q, sx) {
+    const cx = 390, right = this.state === 'right';
+    // the question
+    const big = q.prompt.length < 16;
+    if (big) text(q.prompt, cx, 250, 88, '#FFFFFF', 'center', 700);
+    else { const pl = wrapLines(q.prompt, 640, 38, 700); const y0 = 250 - (pl.length - 1) * 23; pl.forEach((ln, k) => text(ln, cx, y0 + k * 46, 38, '#FFFFFF', 'center', 700)); }
+    // two answer boxes
+    for (let i = 0; i < 2; i++) {
+      const x = cx - 140 + i * 160 + sx, y = 340;
+      fillRR(x, y, 120, 140, 26, right ? '#2E9C5B' : '#FFFFFF');
+      const d = this.typed[i];
+      if (d) text(d, x + 60, y + 74, 96, right ? '#FFFFFF' : INK, 'center', 700);
+      else if (i === this.typed.length && !right && (T % 1) < 0.6) fillRR(x + 30, y + 112, 60, 10, 5, '#FFC21A');
+    }
+    // hint / feedback / how-to
+    if (this.feedback) {
+      const fl = wrapLines(this.feedback, 600, 26, 700), h = 24 + fl.length * 34;
+      fillRR(cx - 320, 512, 640, h, 22, right ? '#2E9C5B' : '#FFFFFF');
+      fl.forEach((ln, k) => text(ln, cx, 512 + 30 + k * 34, 26, right ? '#FFFFFF' : INK, 'center', 700));
+    } else text(usingTouch ? 'Tap the numbers, then ✓' : 'Type the answer, or use ◀ ▶ ▲ ▼ and OK', cx, 540, 26, '#D5DDF2', 'center', 600);
+    // number pad
+    this.padRects().forEach((r, i) => {
+      const k = PAD[i], sel = i === this.pad && this.state === 'q';
+      if (sel) fillRR(r.x - 8, r.y - 8, r.w + 16, r.h + 16, 30, '#FFC21A');
+      const bg = k === 'go' ? '#2E9C5B' : k === 'del' ? '#5A668A' : '#FFFFFF';
+      if (!sel) fillRR(r.x, r.y + 7, r.w, r.h, 24, k === 'go' ? '#1F6E3C' : k === 'del' ? '#3E4868' : '#B8C2DC');
+      fillRR(r.x, r.y, r.w, r.h, 24, bg);
+      const cxk = r.x + r.w / 2, cyk = r.y + r.h / 2;
+      if (k === 'go') { ctx.beginPath(); ctx.moveTo(cxk - 24, cyk + 2); ctx.lineTo(cxk - 6, cyk + 20); ctx.lineTo(cxk + 26, cyk - 18); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); }
+      else if (k === 'del') { ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.moveTo(cxk - 34, cyk); ctx.lineTo(cxk - 14, cyk - 20); ctx.lineTo(cxk + 30, cyk - 20); ctx.lineTo(cxk + 30, cyk + 20); ctx.lineTo(cxk - 14, cyk + 20); ctx.closePath(); ctx.fill(); line(cxk - 4, cyk - 9, cxk + 14, cyk + 9, '#5A668A', 5); line(cxk + 14, cyk - 9, cxk - 4, cyk + 9, '#5A668A', 5); }
+      else text(k, cxk, cyk + 3, 56, INK, 'center', 700);
+    });
   }
 }
 
@@ -1199,7 +1284,7 @@ class Title {
   choose(k, dir) {
     SFX.move();
     if (k === 0) { if (!save.seenIntro) { save.seenIntro = true; persist(); scene = new Story(PROLOGUE, 'meadow', () => goMap(1), { title: "Hridu's Great Rescue", kicker: 'The story begins', onBack: () => goMap(1) }); } else goMap(); }
-    else if (k === 1) { const opts = [3, 5, 8, 10]; let i = opts.indexOf(save.interval); i = (i + (dir || 1) + opts.length) % opts.length; save.interval = opts[i]; save.clock = Math.min(save.clock, save.interval * 60 - 5); persist(); }
+    else if (k === 1) { const opts = [3, 5]; let i = opts.indexOf(save.interval); i = (i + (dir || 1) + opts.length) % opts.length; save.interval = opts[i]; save.clock = Math.min(save.clock, save.interval * 60 - 5); persist(); }
     else if (k === 2) { save.sound = !save.sound; persist(); }
     else installApp(this);
   }
