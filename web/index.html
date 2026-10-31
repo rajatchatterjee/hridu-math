@@ -1226,22 +1226,38 @@ class Title {
       text(this.items()[k], W / 2, r.y + r.h / 2 + 1, k === 0 ? 40 : 28, k === 0 ? '#FFFFFF' : INK, 'center', 700);
       if (k === 1 && this.sel === 1 && !usingTouch) { text('◀', r.x + 30, r.y + r.h / 2, 24, INK, 'center', 700); text('▶', r.x + r.w - 30, r.y + r.h / 2, 24, INK, 'center', 700); }
     });
-    if (this.toast && this.toastT > T) { fillRR(W / 2 - 330, 640, 660, 60, 22, INK); text(this.toast, W / 2, 670, 24, '#FFFFFF', 'center', 700); }
-    else text('For grown-ups: puzzles pop up after this much play time.', W / 2, 704, 16, 'rgba(27,42,74,0.75)', 'center', 600);
+    if (this.toast && this.toastT > T) {
+      const tl = wrapLines(this.toast, 980, 26, 700), th = 30 + tl.length * 34;
+      fillRR(W / 2 - 520, 236, 1040, th, 22, INK);
+      tl.forEach((ln, k) => text(ln, W / 2, 236 + 32 + k * 34, 26, '#FFFFFF', 'center', 700));
+    }
+    text('For grown-ups: puzzles pop up after this much play time.', W / 2, 704, 16, 'rgba(27,42,74,0.75)', 'center', 600);
   }
 }
 
 /* ---------------- installable app (PWA) ---------------- */
 let installEvt = null;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const isInstalled = () => matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// Note: the game itself goes full-screen on the first tap, which also matches
+// display-mode: fullscreen — so only count that when the browser didn't do it for us.
+const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true ||
+  (matchMedia('(display-mode: fullscreen)').matches && !document.fullscreenElement && !document.webkitFullscreenElement);
 const isWeb = location.protocol === 'https:' || location.hostname === 'localhost';
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
 addEventListener('appinstalled', () => { installEvt = null; });
-function canInstall() { return isWeb && !isInstalled() && (installEvt || isIOS); }
+function canInstall() { return isWeb && !isInstalled(); }
+function installHelp() {
+  const ua = navigator.userAgent;
+  if (isIOS) return 'Tap the Share button, then "Add to Home Screen"';
+  if (/Android/.test(ua)) return /Firefox/.test(ua) ? 'Open the browser menu (⋮) and tap "Install"' : 'Open the browser menu (⋮) and tap "Install app" or "Add to Home screen"';
+  if (/Edg\//.test(ua)) return 'Click the "App available" icon in the address bar, or menu (…) → Apps → Install';
+  if (/Chrome\//.test(ua)) return 'Click the install icon at the right end of the address bar, or menu (⋮) → Cast, save and share → Install';
+  if (/Safari\//.test(ua)) return 'In Safari, choose File → Add to Dock';
+  return 'Open this page in Chrome or Edge to install it as an app';
+}
 function installApp(title) {
   if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; }); return; }
-  title.toast = 'Tap the Share button, then "Add to Home Screen"'; title.toastT = T + 6;
+  title.toast = installHelp(); title.toastT = T + 9;
 }
 if ('serviceWorker' in navigator && isWeb) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
