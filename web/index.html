@@ -226,6 +226,7 @@ const Voice = {
   },
   say(text, who) {
     const line = spoken(text), pr = VOICES[who] || VOICES.narrator;
+    this.line = text; this.who = who;
     this.stop();
     const id = ++this.id;
     this.started = T; this.est = 0.8 + line.length / (13 * pr.rate); this.ended = false; this.failed = false;
@@ -238,13 +239,39 @@ const Voice = {
         u.pitch = pr.pitch; u.rate = pr.rate * 0.95;
         u.onend = () => { if (id === this.id) this.ended = true; };
         u.onerror = () => { if (id === this.id) this.failed = true; };
-        speechSynthesis.speak(u);
+        this.utt = u; // keep a reference: Safari drops events of collected utterances
+        const go = () => { if (id !== this.id) return; try { speechSynthesis.resume(); speechSynthesis.speak(u); } catch (e) { this.failed = true; } };
+        // Safari/iOS silently drops a line spoken right after cancel(), so wait a moment then.
+        if (this.justCancelled) setTimeout(go, 120); else go();
+        this.justCancelled = false;
       } catch (e) { this.failed = true; }
       return;
     }
     this.failed = true;
   },
-  stop() { this.id++; this.ended = true; this.failed = false; try { if (this.native) window.HriduTTS.stop(); else if (this.web) speechSynthesis.cancel(); } catch (e) {} },
+  stop() {
+    this.id++; this.ended = true; this.failed = false;
+    try {
+      if (this.native) window.HriduTTS.stop();
+      else if (this.web && (speechSynthesis.speaking || speechSynthesis.pending)) { speechSynthesis.cancel(); this.justCancelled = true; }
+    } catch (e) {}
+  },
+  /* iPhone/iPad: Safari only allows speech (and sound) after speech has been
+     started from a tap. The first tap anywhere unlocks it with a silent line,
+     then re-reads whatever line is waiting, so story/questions are heard. */
+  unlocked: false,
+  unlock() {
+    if (this.unlocked) return;
+    this.unlocked = true;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {} // play even with the silent switch on
+    if (!this.web || this.native) return;
+    try {
+      const u = new SpeechSynthesisUtterance(' '); u.volume = 0; this.warm = u;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+    // Re-read the line that was waiting (it was silent before the tap).
+    if (this.line && !this.done()) { const id = this.id, l = this.line, w = this.who; setTimeout(() => { if (id === this.id) this.say(l, w); }, 150); }
+  },
   // Has the current line been fully read? (No voice: after normal reading time.)
   done() { const t = T - this.started; if (this.failed) return t >= this.est; if (this.ended) return true; return t >= this.est * 2.5 + 3; },
   get speaking() { return !this.done(); },
@@ -252,6 +279,7 @@ const Voice = {
 window.hriduVoiceDone = id => { if (String(Voice.id) === String(id)) Voice.ended = true; };
 window.hriduVoiceError = id => { if (String(Voice.id) === String(id)) Voice.failed = true; };
 if (Voice.web) { Voice.pickVoice(); try { speechSynthesis.onvoiceschanged = () => Voice.pickVoice(); } catch (e) {} }
+for (const ev of ['pointerdown', 'touchend', 'keydown', 'click']) addEventListener(ev, () => { Voice.unlock(); if (typeof audio === 'function') audio(); }, { capture: true, passive: true });
 
 /* ---------------- background music (made in code, no files) ----------------
    Every level gets its own tune: a STYLE (scale, tempo, chords, instruments,

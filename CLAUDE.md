@@ -35,6 +35,12 @@ runs in any browser on phones and laptops.
   `window.HriduTTS` bridge in MainActivity (WebView has no speechSynthesis;
   manifest declares the TTS_SERVICE `<queries>` for Android 11+). Prefers an
   en-IN voice. Each character has its own pitch/rate (`VOICES`).
+- **iPhone/iPad (Safari, home-screen app)**: Safari blocks speech until a line
+  is spoken from a tap. `Voice.unlock()` runs on the first tap/key anywhere:
+  speaks a silent line, sets `navigator.audioSession.type='playback'` (sound
+  even with the silent switch on), resumes WebAudio, then re-reads the line
+  that was waiting. Safari also drops a line spoken right after `cancel()`,
+  so `say()` waits 120 ms after a cancel; `stop()` only cancels if talking.
 - **Can't be skipped** (Rajat's rule): a story card only advances once the
   voice has finished (Android signals `hriduVoiceDone(id)`); Back never skips
   story (it only leaves a level intro to the map). In pit stops, answering is
@@ -188,6 +194,8 @@ rejects as a downgrade.
   full!" gets fireworks, confetti and a fanfare.
 
 ## History
+- 2026-10-31: Fix: no voice-over on iPhone/iPad (Safari speech unlock on first tap,
+  delay after cancel, play through the silent switch).
 - 2026-10-31: Grand celebrations after every level, chapter, target and pit stop.
 - 2026-10-31: Number Gates / Star Catch sums are single digits only.
 - 2026-10-31: Number Gates / Star Catch made easier (no-carry sums, ±10/20
