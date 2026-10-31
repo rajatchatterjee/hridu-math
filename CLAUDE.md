@@ -173,7 +173,22 @@ rejects as a downgrade.
   sleeves) was drawn from a family photo shared in chat; the photo itself is
   intentionally NOT in the repo (public repo).
 
+## Celebrations
+- `FX` (global confetti + firework particles, drawn over any scene in the frame
+  loop) and `SFX.fanfare/cheer/ding/boom`.
+- **Level complete** (`LevelDone`): sunburst, fireworks, confetti, stars slam in
+  one by one with a ding, bouncing praise (PERFECT!/GREAT JOB!/YOU DID IT!),
+  score count-up, Hridu jumping with the level's buddy (`buddyOf`: mount,
+  Zippy, Dolly, rocket or Hoot, who also says the voice line), fanfare +
+  applause, then the 'party' tune. OK works after 4 s.
+- **Chapter complete** (last level of each chapter): bigger version with a
+  golden trophy, "CHAPTER COMPLETE!", parade of friends; OK after 6 s.
+- In play: "TARGET REACHED!" banner when the collect target is met (maze:
+  "DOOR OPEN!"); confetti + fireworks at the finish line; pit stop "Fuel tank
+  full!" gets fireworks, confetti and a fanfare.
+
 ## History
+- 2026-10-31: Grand celebrations after every level, chapter, target and pit stop.
 - 2026-10-31: Number Gates / Star Catch sums are single digits only.
 - 2026-10-31: Number Gates / Star Catch made easier (no-carry sums, ±10/20
   choices, slower, fewer); wrong answers don't cost hearts; stars by accuracy.

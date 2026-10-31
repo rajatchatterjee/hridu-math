@@ -112,6 +112,88 @@ const SFX = {
   pick: () => seq([660, 990], 60, 'sine', 0.1),
   win: () => seq([523, 659, 784, 1047], 120),
   rescue: () => seq([587, 784, 988, 1175], 80),
+  ding: (k) => { tone(1047 * Math.pow(1.26, k || 0), 0.5, 'triangle', 0.14); tone(2094 * Math.pow(1.26, k || 0), 0.35, 'sine', 0.05); },
+  pop: () => tone(rand(500, 900), 0.12, 'sine', 0.05, 500),
+  boom: () => { tone(90, 0.5, 'sine', 0.12, -40); crackle(0, 0.35, 0.06); },
+  // trumpet fanfare: da-da-da-DAAA with a big held chord
+  fanfare: (big) => {
+    const n = big ? [[523, 0], [523, 140], [523, 280], [659, 420], [784, 700], [659, 980], [784, 1120]] : [[523, 0], [659, 130], [784, 260]];
+    n.forEach(([f, t]) => setTimeout(() => { tone(f, 0.22, 'sawtooth', 0.05); tone(f * 2, 0.22, 'square', 0.025); }, t));
+    const at = big ? 1260 : 400, hold = big ? 1.6 : 1.0;
+    setTimeout(() => [523, 659, 784, 1047].forEach(f => { tone(f, hold, 'sawtooth', 0.035); tone(f / 2, hold, 'triangle', 0.05); }), at);
+  },
+  // a crowd clapping and cheering
+  cheer: (sec) => { sec = sec || 2.2; for (let i = 0; i < sec * 22; i++) crackle(Math.random() * sec, 0.05, 0.05 + Math.random() * 0.05); whoo(0.1, sec); },
+};
+function noiseBuffer() {
+  if (!AC) return null;
+  if (!noiseBuf) { noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.3, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  return noiseBuf;
+}
+// one clap / crackle of noise, `at` seconds from now
+function crackle(at, dur, vol) {
+  if (!save.sound || !noiseBuffer()) return;
+  try {
+    const t = AC.currentTime + at, s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+    s.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = rand(900, 2600); f.Q.value = 0.8;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f); f.connect(g); g.connect(AC.destination); s.start(t, Math.random() * 0.2); s.stop(t + dur + 0.02);
+  } catch (e) {}
+}
+// a soft "wooo!" from the crowd
+function whoo(at, sec) {
+  if (!save.sound || !AC) return;
+  try {
+    for (let k = 0; k < 3; k++) {
+      const t = AC.currentTime + at + k * 0.15, o = AC.createOscillator(), g = AC.createGain(), f0 = 380 + k * 90;
+      o.type = 'triangle'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * 1.6, t + 0.4); o.frequency.linearRampToValueAtTime(f0 * 1.2, t + sec * 0.6);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.025, t + 0.2); g.gain.exponentialRampToValueAtTime(0.0001, t + sec * 0.6);
+      o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + sec * 0.6 + 0.05);
+    }
+  } catch (e) {}
+}
+
+/* ---------------- celebration effects (confetti + fireworks) ----------------
+   A global particle layer drawn on top of whatever scene is showing. */
+const FX_COLS = ['#FFC21A', '#F26B45', '#3B6FD8', '#2E9C5B', '#E85D9A', '#7E68C2', '#1B8EC2', '#FFFFFF'];
+const FX = {
+  p: [], rockets: [],
+  clear() { this.p = []; this.rockets = []; },
+  confetti(n, x, y, spread) {
+    for (let i = 0; i < n; i++) {
+      const fromTop = x == null;
+      this.p.push({ k: 'c', x: fromTop ? rand(0, W) : x + rand(-20, 20), y: fromTop ? rand(-200, -10) : y, vx: fromTop ? rand(-40, 40) : rand(-1, 1) * (spread || 500), vy: fromTop ? rand(60, 200) : rand(-700, -250),
+        rot: rand(0, 6), vr: rand(-10, 10), w: rand(8, 16), h: rand(5, 9), c: pick(FX_COLS), life: rand(3, 5), sway: rand(0, 6) });
+    }
+  },
+  burst(x, y, n, col, speed) {
+    const c = col || pick(FX_COLS), c2 = pick(FX_COLS);
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + rand(-0.05, 0.05), v = rand(0.6, 1) * (speed || 330); this.p.push({ k: 's', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, c: i % 3 ? c : c2, life: rand(1.0, 1.6), max: 1.6, r: rand(3, 5) }); }
+    this.p.push({ k: 'f', x, y, life: 0.25, max: 0.25, r: (speed || 330) * 0.35 });
+    if (this.p.length > 1600) this.p.splice(0, this.p.length - 1600);
+  },
+  launch(x, ty, big) { this.rockets.push({ x, y: H + 10, vy: -rand(700, 900), ty: ty == null ? rand(110, 330) : ty, big, c: pick(FX_COLS) }); SFX.pop(); },
+  update(dt) {
+    for (const r of this.rockets) { r.y += r.vy * dt; r.vy *= 0.995; this.p.push({ k: 't', x: r.x + rand(-2, 2), y: r.y + 8, vx: 0, vy: 40, c: '#FFE88A', life: 0.35, max: 0.35, r: 3 }); if (r.y <= r.ty) { r.done = true; this.burst(r.x, r.y, r.big ? 70 : 46, r.c, r.big ? 420 : 320); SFX.boom(); } }
+    this.rockets = this.rockets.filter(r => !r.done);
+    for (const q of this.p) {
+      q.life -= dt;
+      if (q.k === 'c') { q.vy = Math.min(q.vy + 600 * dt, 170); q.vx *= 0.97; q.x += (q.vx + Math.sin(T * 3 + q.sway) * 40) * dt; q.y += q.vy * dt; q.rot += q.vr * dt; }
+      else if (q.k === 's' || q.k === 't') { q.vx *= 0.97; q.vy = q.vy * 0.97 + 140 * dt; q.x += q.vx * dt; q.y += q.vy * dt; }
+    }
+    this.p = this.p.filter(q => q.life > 0 && q.y < H + 40);
+  },
+  draw() {
+    if (!this.p.length && !this.rockets.length) return;
+    ctx.save();
+    for (const r of this.rockets) circle(r.x, r.y, 5, '#FFF4C2');
+    for (const q of this.p) {
+      if (q.k === 'c') { ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot); ctx.scale(1, Math.cos(q.rot * 1.7)); ctx.fillStyle = q.c; ctx.fillRect(-q.w / 2, -q.h / 2, q.w, q.h); ctx.restore(); }
+      else if (q.k === 'f') { ctx.globalAlpha = q.life / q.max; circle(q.x, q.y, q.r * (1.4 - q.life / q.max), 'rgba(255,255,230,0.8)'); ctx.globalAlpha = 1; }
+      else { ctx.globalAlpha = clamp(q.life / q.max, 0, 1); circle(q.x, q.y, q.r, q.c); ctx.globalAlpha = 1; }
+    }
+    ctx.restore();
+  },
 };
 
 /* ---------------- voice-over ----------------
@@ -199,6 +281,7 @@ const STYLES = {
   bouncy:  { scale: 'penta', root: 62, bpm: 142, prog: [0, 2, 3, 4], lead: 'triangle', drums: 'b.hbs.hb', rhythm: 'xx.xx.xx', bassPat: 'r.or.or.' },
   castle:  { scale: 'minor', root: 55, bpm: 126, prog: [0, 5, 6, 4], lead: 'square', drums: 'k.s.k.ss', rhythm: 'x.xx-.x.', bassPat: 'r.r.o.o.' },
   finale:  { scale: 'major', root: 60, bpm: 140, prog: [0, 4, 5, 3], lead: 'square', drums: 'kks.kks.', rhythm: 'x-xx.xx.', bassPat: 'rrorrror', arp: true },
+  party:   { scale: 'major', root: 62, bpm: 152, prog: [0, 3, 4, 4], lead: 'square', drums: 'b.hbs.hb', rhythm: 'xx.xx.xx', bassPat: 'r.or.or.', arp: true },
   think:   { scale: 'dorian', root: 60, bpm: 80, prog: [0, 3, 1, 4], lead: 'sine', drums: '........', rhythm: 'x...x...', bassPat: 'r.......', arp: true, soft: true },
 };
 const THEME_STYLE = { meadow: 'meadow', hills: 'sky', clouds: 'sky', jungle: 'jungle', desert: 'desert', ocean: 'island', storm: 'storm', reef: 'reef', beach: 'beach', snow: 'snow', icecave: 'sneaky', space: 'space', moon: 'space', castle: 'castle' };
@@ -245,7 +328,7 @@ const TUNES = {};
 function tuneFor(name) {
   if (!TUNES[name]) {
     if (name.startsWith('L')) { const L = LEVELS[+name.slice(1) - 1]; TUNES[name] = buildTune(styleForLevel(L), L.n); }
-    else TUNES[name] = buildTune(name, name === 'think' ? 3 : 1);
+    else TUNES[name] = buildTune(name, name === 'think' ? 3 : name === 'party' ? 5 : 1);
   }
   return TUNES[name];
 }
@@ -255,7 +338,8 @@ const Music = {
   want(name) {
     if (!AC || !save.music || document.hidden) { this.tune = null; return; }
     if (!this.out) { this.out = AC.createGain(); this.out.gain.value = 1; this.out.connect(AC.destination); }
-    if (!noiseBuf) { noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.3, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    noiseBuffer();
+    if (!name) { this.tune = null; return; }
     if (name !== this.tune) { this.tune = name; this.step = 0; this.next = AC.currentTime + 0.15; }
     this.out.gain.setTargetAtTime(Voice.speaking ? 0.3 : 1, AC.currentTime, 0.15); // quieter while someone talks
     const tn = tuneFor(name), dt = 60 / tn.bpm / 2, v = tn.soft ? 0.6 : 1;
@@ -288,7 +372,7 @@ function musicFor(sc) {
   if (sc instanceof PitStop) return 'think';
   if (sc instanceof Play) return 'L' + sc.L.n;
   if (sc instanceof Story && sc.opts.levelN) return 'L' + sc.opts.levelN;
-  if (sc instanceof LevelDone) return 'L' + sc.play.L.n;
+  if (sc instanceof LevelDone) return sc.t < sc.quiet ? null : 'party';
   return 'title';
 }
 
@@ -1439,8 +1523,9 @@ class PitStop {
   }
   update(dt) {
     this.shake = Math.max(0, this.shake - dt);
+    if (this.state === 'done') { this.doneT += dt; if (this.doneT < 3 && (this.doneT % 0.7) < dt) FX.launch(rand(150, W - 150), rand(120, 260)); if ((this.doneT % 0.15) < dt) FX.confetti(2); }
     if (this.listening && Voice.done()) this.listening = false;
-    if (this.state === 'right') { this.timer -= dt; if (this.timer <= 0 && Voice.done()) { if (this.i < this.tasks.length - 1) { this.i++; this.state = 'q'; this.newQ(); this.readQ(); } else { this.state = 'done'; this.bonus = this.firstTry * 5; SFX.win(); Voice.say('Fuel tank full! ' + (this.bonus ? `You got ${this.bonus} bonus stars!` : '') + ' Back to the adventure!', 'zippy'); } } }
+    if (this.state === 'right') { this.timer -= dt; if (this.timer <= 0 && Voice.done()) { if (this.i < this.tasks.length - 1) { this.i++; this.state = 'q'; this.newQ(); this.readQ(); } else { this.state = 'done'; this.doneT = 0; this.bonus = this.firstTry * 5; SFX.fanfare(false); FX.confetti(70, 80, H - 40, 650); FX.confetti(70, W - 80, H - 40, 650); FX.launch(320, 160); FX.launch(960, 180); setTimeout(() => SFX.cheer(1.4), 450); Voice.say('Fuel tank full! ' + (this.bonus ? `You got ${this.bonus} bonus stars!` : '') + ' Back to the adventure!', 'zippy'); } } }
   }
   finish() { this.play.score += this.bonus || 0; this.play.countdown = 2.2; scene = this.play; }
   draw() {
@@ -1455,8 +1540,9 @@ class PitStop {
       return;
     }
     if (this.state === 'done') {
-      drawPlane(640, 250, { s: 1.4, wave: true });
-      text('Fuel tank full!', W / 2, 420, 64, '#FFFFFF', 'center', 700);
+      drawRays(W / 2, 250, this.doneT || 0, 'rgba(255,255,255,0.08)', 12);
+      drawPlane(640, 250 + Math.sin(T * 3) * 14, { s: 1.4, wave: true, tilt: Math.sin(T * 2.5) * 0.08 });
+      bigWord('Fuel tank full!', W / 2, 420, 72, (this.doneT || 0) - 0.05, '#FFC21A');
       text(this.bonus ? `First-try bonus: +${this.bonus} stars` : 'Great trying! Back to the adventure.', W / 2, 490, 32, '#FFE88A', 'center', 600);
       if (Voice.done() && (T % 1) < 0.7) text(usingTouch ? 'Tap to keep playing' : 'Press OK to keep playing', W / 2, 580, 30, '#FFFFFF', 'center', 700);
       return;
@@ -1663,6 +1749,7 @@ class Play {
     if (this.countdown > 0) { this.countdown -= dt; return; }
     const L = this.L, m = L.mode;
     if (this.finished) {
+      if (!this.endFx) { this.endFx = true; FX.confetti(120); FX.launch(300, 180); FX.launch(980, 200); FX.launch(640, 140, true); }
       this.endT += dt;
       if (m !== 'catch' && m !== 'maze') { this.dist += L.speed * dt * 0.6; if (m !== 'run') this.p.x += 500 * dt; }
       if (this.endT > 1.8) levelComplete(this);
@@ -1675,12 +1762,27 @@ class Play {
     if (m === 'catch') this.updCatch(dt);
     else if (m === 'maze') this.updMaze(dt);
     else this.updScroll(dt);
+    this.banner = Math.max(0, (this.banner || 0) - dt);
+    const hit = m === 'gates' ? this.gatesRight >= L.goal : m === 'maze' ? this.mz && this.mz.open : this.need && this.got >= this.need;
+    if (hit && !this.metShown && !this.finished) { this.metShown = true; this.cheerTarget(m === 'maze' ? 'DOOR OPEN!' : 'TARGET REACHED!'); }
     // a short story halfway through (can't be skipped)
     if (L.mid && !this.midDone && !this.finished && !this.menu && scene === this && this.progress() >= 0.5) {
       this.midDone = true; releaseAll();
       const me = this;
       scene = new Story(L.mid, L.theme, () => { scene = me; me.countdown = 2.2; }, { title: L.name, kicker: 'Along the way…', levelN: L.n });
     }
+  }
+  cheerTarget(msg) {
+    this.banner = 2.6; this.bannerMsg = msg; SFX.fanfare(false);
+    FX.confetti(60, W / 2 - 300, 300, 500); FX.confetti(60, W / 2 + 300, 300, 500); FX.burst(W / 2, 250, 40, '#FFC21A', 380);
+    if (this.L.mode !== 'maze') Voice.say(pick(['Target reached! Now race to the finish!', 'You did it! Head for the finish line!', 'All collected! Go, go, go!']), 'zippy');
+  }
+  drawBanner() {
+    if (!this.banner) return;
+    const k = 2.6 - this.banner, a = clamp(this.banner / 0.4, 0, 1);
+    ctx.save(); ctx.globalAlpha = a;
+    bigWord(this.bannerMsg, W / 2, 300, 76, k, '#7FE0A0');
+    ctx.restore();
   }
   objY(o) {
     if (o.t === 'bird') return o.y0 + Math.sin(T * 2.4 + o.ph) * o.amp;
@@ -1958,7 +2060,8 @@ class Play {
       const msg = this.countdown > 0.7 ? 'Ready?' : 'Go!';
       fillRR(W / 2 - 170, 270, 340, 120, 40, 'rgba(255,255,255,0.95)'); text(msg, W / 2, 332, 64, '#B13A16', 'center', 700);
     }
-    if (this.finished) { fillRR(W / 2 - 260, 250, 520, 110, 40, 'rgba(255,255,255,0.95)'); text(m === 'rescue' ? 'All friends saved!' : m === 'maze' ? 'You escaped!' : 'You made it!', W / 2, 306, 52, '#2E7D32', 'center', 700); }
+    if (this.finished) bigWord(m === 'rescue' ? 'All friends saved!' : m === 'maze' ? 'You escaped!' : 'You made it!', W / 2, 306, 80, this.endT, '#7FE0A0');
+    else this.drawBanner();
     if (this.menu) this.drawMenu();
   }
   drawCatch(blink) {
@@ -2166,28 +2269,141 @@ function levelComplete(play) {
   persist();
   scene = new LevelDone(play, stars);
 }
+// Who celebrates with Hridu at the end of a level, and in whose voice.
+function buddyOf(L) {
+  if (L.mode === 'run') return { voice: { bunny: 'bibi', cheetah: 'chiku', camel: 'kanta' }[L.mount] || 'zippy', draw: (x, y, t) => { ctx.save(); ctx.translate(x, y - Math.abs(Math.sin(t * 6)) * 40); drawMount(L.mount, t * 10, false); ctx.restore(); } };
+  if (L.mode === 'dive') return { voice: 'dolly', draw: (x, y, t) => { ctx.save(); ctx.translate(x, y - 70 - Math.abs(Math.sin(t * 4)) * 50); ctx.rotate(Math.sin(t * 4) * 0.25); drawDolphin(t * 8); ctx.restore(); } };
+  if (L.mode === 'space') return { voice: 'zippy', draw: (x, y, t) => drawRocket(x, y - 120 + Math.sin(t * 3) * 25, { s: 0.85, tilt: Math.sin(t * 2) * 0.15 }) };
+  if (L.mode === 'catch' || L.mode === 'maze') return { voice: 'hoot', draw: (x, y, t) => drawOwl(x, y - 100 - Math.abs(Math.sin(t * 5)) * 35, 1.5) };
+  return { voice: 'zippy', draw: (x, y, t) => drawPlane(x, y - 120 + Math.sin(t * 3) * 25, { s: 1.05, tilt: Math.sin(t * 3) * 0.12, wave: true }) };
+}
+function drawTrophy(x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  const g = '#FFC21A', d = '#E09A00', l = '#FFE88A';
+  fillRR(-70, -26, 140, 26, 8, '#7A4A1E'); fillRR(-50, -46, 100, 22, 6, d);
+  fillRR(-14, -96, 28, 54, 6, d);
+  ctx.lineWidth = 16; ctx.strokeStyle = d;
+  ctx.beginPath(); ctx.arc(-82, -190, 34, Math.PI * 0.45, Math.PI * 1.55); ctx.stroke();
+  ctx.beginPath(); ctx.arc(82, -190, 34, -Math.PI * 0.55, Math.PI * 0.55); ctx.stroke();
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-86, -236); ctx.lineTo(86, -236); ctx.quadraticCurveTo(84, -110, 0, -94); ctx.quadraticCurveTo(-84, -110, -86, -236); ctx.fill();
+  ell(0, -236, 86, 16, d); ell(0, -236, 74, 10, '#B97F00');
+  ctx.fillStyle = l; ctx.beginPath(); ctx.moveTo(-60, -222); ctx.quadraticCurveTo(-58, -140, -22, -112); ctx.quadraticCurveTo(-46, -150, -44, -222); ctx.fill();
+  drawStar(0, -170, 30, '#FFFFFF', d);
+  fillRR(-46, -20, 92, 14, 5, '#C98E55');
+  ctx.restore();
+}
+function drawRays(x, y, t, c1, n) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.25); ctx.fillStyle = c1;
+  for (let i = 0; i < n; i++) { ctx.rotate(Math.PI * 2 / n); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1400, -110); ctx.lineTo(1400, 110); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+// big bouncy outlined headline
+function bigWord(s, x, y, size, t, fill) {
+  const sc = t < 0 ? 0 : t < 0.35 ? 0.3 + 1.0 * (t / 0.35) : 1 + Math.sin(t * 5) * 0.05 + Math.max(0, 0.3 - (t - 0.35) * 1.2) * Math.sin((t - 0.35) * 30);
+  if (sc <= 0) return;
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.rotate(Math.sin(t * 2.4) * 0.03);
+  ctx.font = font(size, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = size * 0.22; ctx.strokeStyle = '#1B2A4A'; ctx.strokeText(s, 0, 4);
+  ctx.lineWidth = size * 0.12; ctx.strokeStyle = '#FFFFFF'; ctx.strokeText(s, 0, 0);
+  ctx.fillStyle = fill || '#FFC21A'; ctx.fillText(s, 0, 0);
+  ctx.restore();
+}
+const PARADE = ['elephant', 'penguin', 'panda', 'monkey', 'lion', 'giraffe'];
+
 class LevelDone {
-  constructor(play, stars) { this.play = play; this.stars = stars; this.t = 0; this.isRoot = false; SFX.win(); Voice.say(`Level complete! You got ${stars} star${stars > 1 ? 's' : ''}!`, 'zippy'); }
+  constructor(play, stars) {
+    this.play = play; this.stars = stars; this.t = 0; this.isRoot = false;
+    const L = play.L, ch = chapterOf(L.n);
+    this.chapter = ch && ch.to === L.n ? ch : null;
+    this.buddy = buddyOf(L);
+    this.quiet = this.chapter ? 5 : 3.4;          // fanfare + cheering first, then party music
+    this.minT = this.chapter ? 6 : 4;
+    this.praise = stars >= 3 ? 'PERFECT!' : stars === 2 ? 'GREAT JOB!' : 'YOU DID IT!';
+    this.sub = stars >= 3 ? 'SUPERSTAR!' : stars === 2 ? 'Well played!' : 'Try again for more stars!';
+    this.landed = 0; this.nextFw = 0.3; this.nextConf = 0; this.cheered = false; this.spoke = false;
+    Voice.stop && Voice.stop();
+    FX.clear(); SFX.fanfare(!!this.chapter);
+    FX.confetti(90, 60, H - 40, 700); FX.confetti(90, W - 60, H - 40, 700);
+    if (this.chapter) FX.confetti(140);
+  }
   onAction(a) { if (a === 'ok' || a === 'back') this.go(); }
   onTap() { this.go(); }
   go() {
-    if (this.t < 0.6) return;
+    if (this.t < this.minT || !Voice.done()) return;
     const L = this.play.L;
     if (L.n === 8) scene = new Story(ENDING(), 'ending', () => goMap(9), { title: 'Everyone is home!', kicker: 'End of Chapter 1' });
     else if (L.n === LEVELS.length) scene = new Story(ENDING2(), 'ending', () => goMap(L.n), { title: 'The Golden Numbers are home!', kicker: 'The End' });
     else scene = new Story(L.outro, L.theme, () => goMap(L.n + 1), { levelN: L.n });
   }
-  update(dt) { this.t += dt; }
+  starT(i) { return 0.9 + i * 0.55; }
+  update(dt) {
+    this.t += dt; const t = this.t;
+    // stars slam in one at a time
+    while (this.landed < this.stars && t >= this.starT(this.landed)) { const i = this.landed++; SFX.ding(i); FX.burst(W / 2 - 150 + i * 150, 268, 36, '#FFC21A', 300); }
+    if (!this.cheered && t > this.starT(this.stars - 1) + 0.3) { this.cheered = true; SFX.cheer(this.chapter ? 3.2 : 2.2); }
+    if (!this.spoke && t > (this.chapter ? 2.2 : 1.6)) {
+      this.spoke = true;
+      const s = this.stars, L = this.play.L;
+      const line = this.chapter
+        ? `Hooray! You finished ${this.chapter.name}! You are a champion, Hridu! You got ${s} star${s > 1 ? 's' : ''}!`
+        : `${this.praise[0] + this.praise.slice(1).toLowerCase()} ${s === 3 ? 'Superstar Hridu!' : ''} You finished ${L.name} with ${s} star${s > 1 ? 's' : ''}!`;
+      Voice.say(line, this.buddy.voice);
+    }
+    // fireworks: a big show at first, then every so often
+    const busy = this.chapter ? 99 : 6;
+    if (t >= this.nextFw) {
+      const n = this.chapter && t < 6 ? 2 : 1;
+      for (let k = 0; k < n; k++) FX.launch(rand(100, W - 100), null, this.chapter || Math.random() < 0.3);
+      this.nextFw = t + (t < busy ? rand(0.3, 0.55) : rand(1.0, 1.6)) / (this.chapter ? 1.2 : 1);
+    }
+    if (t >= this.nextConf) { FX.confetti(this.chapter ? 6 : 3); this.nextConf = t + 0.12; }
+  }
   draw() {
-    drawBG(this.play.L.theme, this.t * 60, this.play.L.mode);
-    ctx.fillStyle = 'rgba(16,24,48,0.55)'; ctx.fillRect(0, 0, W, H);
-    fillRR(W / 2 - 360, 110, 720, 500, 40, '#FFFFFF');
-    text('Level complete!', W / 2, 180, 56, INK, 'center', 700);
-    text(this.play.L.name, W / 2, 236, 30, '#4A5672', 'center', 600);
-    for (let i = 0; i < 3; i++) { const s = clamp((this.t - 0.3 - i * 0.3) * 4, 0, 1); drawStar(W / 2 - 130 + i * 130, 340, 50 * (i < this.stars ? s : 1), i < this.stars ? '#FFC21A' : '#E3E7EF', i < this.stars ? '#E09A00' : null); }
-    text(this.play.accuracy != null ? `Right answers: ${Math.round(this.play.accuracy * 100)}%` : `Collected: ${this.play.score}`, W / 2, 440, 32, INK, 'center', 700);
-    drawHridu(W / 2, 520, 1.0, { cheer: true, wave: true });
-    if ((T % 1) < 0.7) text(usingTouch ? 'Tap to continue' : 'Press OK to continue', W / 2, 650, 28, '#FFFFFF', 'center', 700);
+    const L = this.play.L, t = this.t, ch = this.chapter;
+    drawBG(L.theme, t * 60, L.mode);
+    ctx.fillStyle = ch ? 'rgba(40,20,70,0.6)' : 'rgba(16,24,48,0.5)'; ctx.fillRect(0, 0, W, H);
+    drawRays(W / 2, 300, t, ch ? 'rgba(255,214,90,0.16)' : 'rgba(255,255,255,0.09)', 14);
+    // headline
+    if (ch) {
+      pill(W / 2 - 260, 22, 520, 50, '#E4572E'); text(`Chapter ${ch.n} · ${ch.name}`, W / 2, 48, 28, '#FFFFFF', 'center', 700);
+      bigWord('CHAPTER COMPLETE!', W / 2, 122, 78, t - 0.1, '#FFC21A');
+    } else {
+      bigWord(this.praise, W / 2, 92, 92, t - 0.1, this.stars >= 3 ? '#FFC21A' : '#7FE0A0');
+      text(`${this.sub}  ·  ${L.name}`, W / 2, 168, 32, '#FFFFFF', 'center', 700);
+    }
+    // stars slam in: huge, then settle
+    for (let i = 0; i < 3; i++) {
+      const x = W / 2 - 150 + i * 150, y = ch ? 236 : 268, k = t - this.starT(i), got = i < this.stars;
+      if (!got || k < 0) { drawStar(x, y, 56, 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.35)'); if (!got || k < -0.3) continue; }
+      const sc = k < 0 ? 3 - (k + 0.3) / 0.3 * 2 : 1 + Math.max(0, 0.35 - k) * Math.sin(k * 40) * 0.6;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(t * 3 + i) * 0.08); ctx.globalAlpha = k < 0 ? (k + 0.3) / 0.3 : 1;
+      drawStar(0, 0, 60 * sc, '#FFC21A', '#E09A00'); drawStar(-10 * sc, -12 * sc, 14 * sc, 'rgba(255,255,255,0.7)');
+      ctx.restore();
+    }
+    // score counting up
+    const cu = clamp((t - this.starT(Math.max(0, this.stars - 1)) - 0.4) / 1.2, 0, 1);
+    const scoreTxt = this.play.accuracy != null ? `Right answers: ${Math.round(this.play.accuracy * 100 * cu)}%` : `Score: ${Math.round(this.play.score * cu)}`;
+    if (cu > 0) { ctx.font = font(36, 700); const w = ctx.measureText(scoreTxt).width + 60; pill(W / 2 - w / 2, (ch ? 300 : 334), w, 58, 'rgba(255,255,255,0.95)'); text(scoreTxt, W / 2, (ch ? 329 : 363), 36, INK, 'center', 700); }
+    // the party: Hridu jumps, his buddy dances
+    const hop = Math.abs(Math.sin(t * 5)) * 46;
+    if (ch) {
+      const tr = clamp((t - 0.6) / 0.6, 0, 1), ts = 1.05 * (tr < 1 ? tr * (1.25 - 0.25 * tr) : 1 + Math.sin(t * 4) * 0.03);
+      if (tr > 0) { ctx.save(); ctx.globalAlpha = 0.35 + Math.sin(t * 6) * 0.15; circle(W / 2, 520, 150, '#FFE88A'); ctx.restore(); drawTrophy(W / 2, 650, ts); }
+      drawHridu(330, 590 - hop, 1.05, { cheer: true, wave: true });
+      this.buddy.draw(960, 640, t);
+      // a parade of friends marching along the bottom
+      const n = PARADE.length + (ch.n >= 2 ? 1 : 0) + (ch.n === 5 ? 1 : 0), span = W + 200 + n * 130;
+      for (let i = 0; i < n; i++) {
+        const x = ((t * 140 + i * 130) % span) - 120, y = 712 - Math.abs(Math.sin(t * 7 + i)) * 12;
+        if (i < PARADE.length) drawFriend(PARADE[i], x, y, 0.55, true);
+        else if (i === PARADE.length) drawGrumble(x, y - 40, 0.45, 'happy');
+        else drawRaccoon(x, y, 0.55, 'happy');
+      }
+    } else {
+      drawHridu(470, 600 - hop, 1.15, { cheer: true, wave: true });
+      this.buddy.draw(830, 640, t);
+    }
+    if (t >= this.minT && Voice.done() && (T % 1) < 0.7) { ctx.font = font(28, 700); const msg = usingTouch ? 'Tap to continue' : 'Press OK to continue'; const w = ctx.measureText(msg).width + 50; pill(W - w - 24, H - 66, w, 48, 'rgba(27,42,74,0.85)'); text(msg, W - w / 2 - 24, H - 42, 28, '#FFFFFF', 'center', 700); }
   }
 }
 
@@ -2445,6 +2661,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
   ctx.setTransform(K, 0, 0, K, 0, 0);
   try { if (scene.update) scene.update(dt); scene.draw(); } catch (e) { console.error(e); }
+  try { FX.update(dt); FX.draw(); } catch (e) { console.error(e); }
   try { Music.want(musicFor(scene)); } catch (e) {}
   requestAnimationFrame(frame);
 }
