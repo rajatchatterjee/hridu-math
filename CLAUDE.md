@@ -63,6 +63,12 @@ APK link from the latest Release:
 `https://github.com/rajatchatterjee/hridu-math/releases/latest/download/hridu-great-rescue.apk`
 
 ## Gotchas
+- Pages **Source must be "GitHub Actions"** (Settings → Pages). On "Deploy from
+  a branch", GitHub's own "pages build and deployment" also runs and publishes
+  the README instead of the game, giving a 404 for hridu-great-rescue.html.
+  pages.yml ends with a "Check the game is live" step that fails if the page
+  isn't served. After a fix, GitHub can keep a cached 404 for ~10 min —
+  test with a `?v=N` cache-buster.
 - No local Android build in Claude sessions (Google Maven is unreachable);
   GitHub Actions is the compiler — push, then check the Actions run.
 - Fonts: Fredoka loads from Google Fonts when online; offline it falls back to
