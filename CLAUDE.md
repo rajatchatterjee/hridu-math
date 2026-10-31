@@ -1,10 +1,11 @@
 # Hridu's Great Rescue (repo: hridu-math)
 
-A kids' adventure game for Hridaan ("Hridu"). He flies Zippy the toy
-plane, rides animals and rescues zoo friends. After every few minutes of play
-(5 by default) a **Puzzle Pit Stop** pauses the game: one math question and one
-brain puzzle (pattern, odd-one-out, counting, opposites, what-comes-next).
-Math is answered by TYPING the number; puzzles are multiple choice. Main target is Google TV / Android TV; the same game also
+A kids' adventure game for Hridaan ("Hridu"; "Heidi" in voice-typed messages
+means Hridu). 28 levels in 5 chapters: he flies Zippy, rides animals, dives
+with a dolphin, pilots a rocket, solves Number Gates, catches things and
+escapes mazes. After every few minutes of play (3 or 5) a **Puzzle Pit Stop**
+pauses the game: 2 math problems + 1 brain puzzle. Math and number puzzles
+are TYPED; picture/word puzzles are multiple choice with ONE try. Main target is Google TV / Android TV; the same game also
 runs in any browser on phones and laptops.
 
 ## Layout
@@ -55,17 +56,40 @@ runs in any browser on phones and laptops.
   the title screen.
 
 ## Game structure
-- 8 levels on an adventure map, unlocked in order: 1 Meadow Hop (run, Bibi the
-  bunny), 2 Over the Hills (fly), 3 Banana Jungle (run, Chiku the cheetah),
-  4 Cloud Maze (fly, birds), 5 Island Rescue (rescue 4), 6 Desert Dash (run,
-  Kanta the camel), 7 Storm Flight (fly, wind), 8 Big Zoo Parade (rescue 6),
-  then the ending. Story cards before/after each level; villain is Grumble the
-  lonely storm cloud, puzzle host is Professor Hoot the owl.
+- **Chapter 1 · Sunnyvale Zoo (1–8):** 1 Meadow Hop (run, Bibi the bunny),
+  2 Over the Hills (fly), 3 Banana Jungle (run, Chiku the cheetah), 4 Cloud
+  Maze (fly, birds), 5 Island Rescue (rescue 4), 6 Desert Dash (run, Kanta the
+  camel), 7 Storm Flight (fly, wind), 8 Big Zoo Parade (rescue 6) → ending 1.
+  Villain Grumble the lonely storm cloud (becomes a friend).
+- **Chapters 2–5 (9–28)** — Ziggy the raccoon steals the zoo's Golden Numbers:
+  - Ch2 Ocean Quest (needs 16★): 9 Coral Dive (dive), 10 Number Clouds (gates),
+    11 Shell Catch (catch), 12 Sunken Maze (maze), 13 Shark Bay Rescue (8).
+  - Ch3 Snowy Mountains (28★): 14 Snowy Slopes (run, combos), 15 Ice Cave
+    Maze, 16 Avalanche Flight (fly, wind), 17 Number Peaks (gates, two-step),
+    18 Snowflake Catch.
+  - Ch4 Space Adventure (40★): 19 Rocket Launch (space), 20 Moon Maze,
+    21 Star Catch (math catch: catch the ball with the right answer),
+    22 Asteroid Alley, 23 Planet Gates.
+  - Ch5 Ziggy's Cloud Castle (52★): 24 Thunder Run (run, combos), 25 Castle
+    Maze, 26 Lightning Rescue (10), 27 Number Storm (gates), 28 Grand Finale
+    (fly) → ending 2 (Ziggy becomes a friend).
+  - Chapter star gates (`CHAPTERS[].need`) force replaying levels well:
+    stars = hearts left (1–3). Map shows one chapter per page; ◀ ▶ across.
+- **Game types** (`Play`, `L.mode`): run · fly · rescue · dive (dolphin, fly
+  physics, currents = `wind`) · space (rocket, asteroids) · gates (3 lanes,
+  fly through the cloud with the right answer to the sum on screen; wrong =
+  a bump) · catch (◀ ▶ basket; `mathCatch` = catch the number ball with the
+  right answer) · maze (generated each time; collect all items, dodge
+  patrolling guards, then reach the exit; pac-man style movement).
+- **Mid-level stories:** every level 9+ has `mid` lines that interrupt play at
+  50% progress as an unskippable voiced Story ("Along the way…"); chapter
+  openers (`CHAPTER_INTRO`) play once before levels 9/14/19/24.
+- Story cards before/after each level; puzzle host is Professor Hoot the owl.
 - Math is ONLY two-digit addition and subtraction (both numbers 10–99,
   answers 10–99) — Rajat's rule. Bands by level: 1–2 no carrying/borrowing ·
-  3–4 mixed + short story problems · 5–8 mostly carrying/borrowing, plus
-  missing-number (`45 + ? = 72`) and story forms. Hints walk through the
-  carry/borrow step with the actual digits.
+  3–4 mixed + short story problems · 5–8 mostly carrying/borrowing · 9–16 +
+  missing-number (`45 + ? = 72`) and story forms · 17–28 + two-step sums
+  (`34 + 25 − 18`, every in-between result also 10–99).
 - Every question must be new: `freshQuestion()` keys each question and skips
   any of the last 600 seen (stored in `save.seen`); puzzle kinds rotate through
   a shuffled bag (number pattern, shape pattern, odd-one-out, counting,
@@ -75,10 +99,16 @@ runs in any browser on phones and laptops.
   answer boxes + an on-screen 3x4 number pad (1–9, ⌫, 0, ✓). TV: D-pad moves
   around the pad, OK presses, remote number keys and Back (deletes a digit)
   also work. Laptop: type digits, Backspace, Enter. Phone: tap the pad.
-  Focus jumps to ✓ after two digits. Wrong → hint and the boxes clear; after
-  3 wrong tries the answer is shown so a kid can never get stuck.
-- Puzzles: wrong answers show a hint and grey out that choice. First-try
-  answers (math or puzzle) give bonus stars. Pit stops can't be skipped.
+- **Anti-guessing (Rajat's rules — he caught Hridu gaming both):**
+  - The answer is NEVER shown or spoken, anywhere (pit stops, gates, catch).
+    Hints describe the method only, with no worked-out numbers; a check makes
+    sure a puzzle hint never accidentally contains its answer.
+  - Typed: wrong → method hint + 3 s think-time lock; 2nd wrong → a DIFFERENT
+    question of the same kind (never the answer).
+  - Multiple choice: ONE try; wrong → hint + a different puzzle. The correct
+    option is never highlighted after a miss.
+  - Number puzzles (patterns, counting) are typed, not multiple choice.
+  - First-try answers give bonus stars. Pit stops can't be skipped.
 - Progress, stars, play-clock and settings persist in localStorage
   (`hridu-math-v1`). Title screen has a grown-up setting for the puzzle
   interval — ONLY 3 or 5 min (Rajat's rule; older saves with 8/10 reset to 5)
@@ -121,6 +151,10 @@ rejects as a downgrade.
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: 20 new levels (9–28) in 4 chapters with star gates, Ziggy story
+  arc, unskippable mid-level stories; 5 new game types (dive, space, gates,
+  catch, maze); pit stops = 2 math + 1 puzzle; anti-guessing rules (answers
+  never revealed, one-try MCQ, typed number puzzles); two-step sums.
 - 2026-10-31: In-app updater for the TV/phone app (no Downloader needed for
   updates); version shown on the title screen.
 - 2026-10-31: Voice-over for all story and puzzle text (can't be skipped),
