@@ -171,29 +171,103 @@ window.hriduVoiceDone = id => { if (String(Voice.id) === String(id)) Voice.ended
 window.hriduVoiceError = id => { if (String(Voice.id) === String(id)) Voice.failed = true; };
 if (Voice.web) { Voice.pickVoice(); try { speechSynthesis.onvoiceschanged = () => Voice.pickVoice(); } catch (e) {} }
 
-/* ---------------- background music (made in code, no files) ---------------- */
-const TUNES = {
-  adventure: { bpm: 118, wave: 'triangle', vol: 0.055,
-    mel: [72, 0, 76, 79, 77, 76, 74, 0, 72, 74, 76, 72, 74, 0, 67, 0, 72, 0, 76, 79, 81, 79, 77, 76, 74, 76, 77, 74, 72, 0, 0, 0,
-          76, 0, 79, 84, 83, 81, 79, 0, 77, 79, 81, 77, 76, 0, 74, 0, 72, 74, 76, 77, 79, 77, 76, 74, 72, 71, 72, 74, 72, 0, 0, 0],
-    bass: [48, 48, 53, 53, 55, 55, 48, 48, 48, 48, 53, 53, 55, 55, 48, 48] },
-  think: { bpm: 84, wave: 'sine', vol: 0.05,
-    mel: [60, 64, 67, 72, 67, 64, 60, 64, 57, 60, 64, 69, 64, 60, 57, 60, 53, 57, 60, 65, 60, 57, 53, 57, 55, 59, 62, 67, 62, 59, 55, 59],
-    bass: [48, 45, 41, 43] },
+/* ---------------- background music (made in code, no files) ----------------
+   Every level gets its own tune: a STYLE (scale, tempo, chords, instruments,
+   drum groove) picked from the level's world, plus a melody generated from
+   the level number, so no two levels sound the same. Drums are synthesized
+   (kick / snare / hi-hat from noise). */
+const SCALES = {
+  major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10], lydian: [0, 2, 4, 6, 7, 9, 11],
+  mixo: [0, 2, 4, 5, 7, 9, 10], penta: [0, 2, 4, 7, 9], minPenta: [0, 3, 5, 7, 10], eastern: [0, 1, 4, 5, 7, 8, 10], whole: [0, 2, 4, 6, 8, 10],
 };
+// drums: one char per 8th note, 8 per bar — k kick, s snare, h hat, b kick+hat, . rest
+// rhythm: melody pattern per bar — x note, - hold, . rest
+const STYLES = {
+  title:   { scale: 'major', root: 60, bpm: 112, prog: [0, 5, 3, 4], lead: 'triangle', drums: 'k.h.s.h.', rhythm: 'x.xxx.x.', bassPat: 'r.o.r.o.' },
+  meadow:  { scale: 'major', root: 62, bpm: 132, prog: [0, 3, 4, 0], lead: 'square', drums: 'k.hks.h.', rhythm: 'xx.xx.x.', bassPat: 'r.r.o.o.' },
+  sky:     { scale: 'lydian', root: 60, bpm: 104, prog: [0, 1, 4, 0], lead: 'triangle', drums: 'k...s..h', rhythm: 'x--.x.x.', bassPat: 'r...o...', arp: true },
+  jungle:  { scale: 'minPenta', root: 57, bpm: 136, prog: [0, 3, 2, 0], lead: 'triangle', drums: 'k.hkk.s.', rhythm: 'x.xx.xx.', bassPat: 'r.rr.o.r' },
+  desert:  { scale: 'eastern', root: 62, bpm: 118, prog: [0, 1, 0, 6], lead: 'square', drums: 'k..ks.h.', rhythm: 'x-xx.x--', bassPat: 'r..r.o..' },
+  island:  { scale: 'mixo', root: 60, bpm: 112, prog: [0, 3, 6, 0], lead: 'triangle', drums: '.hkh.hsh', rhythm: '.x.xx.x.', bassPat: 'r..o.r..' },
+  storm:   { scale: 'minor', root: 57, bpm: 144, prog: [0, 5, 2, 6], lead: 'square', drums: 'kkskkks.', rhythm: 'xxx.xx.x', bassPat: 'rrrrrroo' },
+  reef:    { scale: 'dorian', root: 62, bpm: 92, prog: [0, 3, 1, 4], lead: 'sine', drums: 'k...h...', rhythm: 'x--.x-x.', bassPat: 'r...o...', arp: true },
+  beach:   { scale: 'penta', root: 64, bpm: 138, prog: [0, 3, 4, 0], lead: 'triangle', drums: 'b.hbs.h.', rhythm: 'x.xxx.xx', bassPat: 'r.o.r.o.' },
+  snow:    { scale: 'lydian', root: 62, bpm: 104, prog: [0, 4, 3, 0], lead: 'triangle', drums: '..h...h.', rhythm: 'x.x.x--.', bassPat: 'r...r...', arp: true },
+  space:   { scale: 'whole', root: 55, bpm: 96, prog: [0, 2, 1, 3], lead: 'square', drums: 'k...s...', rhythm: 'x--.x--.', bassPat: 'r...o...', arp: true },
+  sneaky:  { scale: 'minor', root: 57, bpm: 108, prog: [0, 5, 0, 4], lead: 'triangle', drums: 'k.h.s.hh', rhythm: 'x.xx..x.', bassPat: 'rorororo' },
+  quiz:    { scale: 'major', root: 60, bpm: 118, prog: [0, 4, 5, 3], lead: 'square', drums: 'k.hhs.hh', rhythm: 'x.x.x.xx', bassPat: 'r.o.r.o.', arp: true },
+  bouncy:  { scale: 'penta', root: 62, bpm: 142, prog: [0, 2, 3, 4], lead: 'triangle', drums: 'b.hbs.hb', rhythm: 'xx.xx.xx', bassPat: 'r.or.or.' },
+  castle:  { scale: 'minor', root: 55, bpm: 126, prog: [0, 5, 6, 4], lead: 'square', drums: 'k.s.k.ss', rhythm: 'x.xx-.x.', bassPat: 'r.r.o.o.' },
+  finale:  { scale: 'major', root: 60, bpm: 140, prog: [0, 4, 5, 3], lead: 'square', drums: 'kks.kks.', rhythm: 'x-xx.xx.', bassPat: 'rrorrror', arp: true },
+  think:   { scale: 'dorian', root: 60, bpm: 80, prog: [0, 3, 1, 4], lead: 'sine', drums: '........', rhythm: 'x...x...', bassPat: 'r.......', arp: true, soft: true },
+};
+const THEME_STYLE = { meadow: 'meadow', hills: 'sky', clouds: 'sky', jungle: 'jungle', desert: 'desert', ocean: 'island', storm: 'storm', reef: 'reef', beach: 'beach', snow: 'snow', icecave: 'sneaky', space: 'space', moon: 'space', castle: 'castle' };
+function styleForLevel(L) {
+  if (L.n === LEVELS.length) return 'finale';
+  if (L.mode === 'maze') return 'sneaky';
+  if (L.mode === 'gates') return 'quiz';
+  if (L.mode === 'catch') return L.theme === 'beach' ? 'beach' : 'bouncy';
+  return THEME_STYLE[L.theme] || 'meadow';
+}
+function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function buildTune(styleName, seed) {
+  const st = STYLES[styleName], R = seeded(seed * 7919 + 13), sc = SCALES[st.scale], n = sc.length;
+  const root = st.root + (seed % 3) - 1;
+  // each level gets its own twist on the style's rhythm (bar 1 stays on the beat)
+  let rhythm = st.rhythm.split(''); for (let k = 0; k < 2; k++) { const i = 1 + Math.floor(R() * 7); rhythm[i] = rhythm[i] === 'x' ? '.' : 'x'; } rhythm = rhythm.join('');
+  const midi = deg => root + sc[((deg % n) + n) % n] + 12 * Math.floor(deg / n);
+  const chordTones = c => [c, c + 2, c + 4];
+  // a motif (contour) reused across bars so the tune has a hook
+  const contour = []; for (let i = 0; i < 8; i++) contour.push(Math.floor(R() * 5) - 2);
+  const mel = [], hold = [];
+  for (let bar = 0; bar < 8; bar++) {
+    const ch = st.prog[bar % 4] + n, rh = bar === 7 ? 'x--.....' : rhythm;
+    let deg = chordTones(ch)[bar % 2 ? 1 : 0] + (bar >= 4 ? 2 : 0);
+    for (let i = 0; i < 8; i++) {
+      if (rh[i] === 'x') {
+        if (i % 2 === 0) { const ct = chordTones(ch); let best = ct[0]; for (const c of [...ct, ...ct.map(x => x + n)]) if (Math.abs(c - deg) < Math.abs(best - deg)) best = c; deg = best; }
+        else deg += (bar % 4 === 2 ? -1 : 1) * contour[i] || (R() < 0.5 ? 1 : -1);
+        deg = clamp(deg, n, n * 2 + 4);
+        if (bar === 7 && i === 0) deg = n;
+        mel.push(midi(deg)); hold.push(rh[i + 1] === '-' ? (rh[i + 2] === '-' ? 3 : 2) : 1);
+      } else { mel.push(0); hold.push(0); }
+    }
+  }
+  const bass = [];
+  for (let bar = 0; bar < 8; bar++) { const ch = st.prog[bar % 4]; for (let i = 0; i < 8; i++) { const p = st.bassPat[i]; bass.push(p === 'r' ? midi(ch) - 24 : p === 'o' ? midi(ch + 4) - 24 : 0); } }
+  const arp = [];
+  if (st.arp) for (let bar = 0; bar < 8; bar++) { const ch = st.prog[bar % 4] + n; for (let i = 0; i < 8; i++) arp.push(midi(chordTones(ch)[i % 3] + (i >= 3 && i < 6 ? n : 0))); }
+  // keep everything in a pleasant range
+  const fit = arr => { const top = Math.max(0, ...arr.filter(Boolean)); const down = top > 88 ? 12 * Math.ceil((top - 88) / 12) : 0; return arr.map(m => m ? m - down : 0); };
+  return { bpm: st.bpm + (seed % 5) * 3, mel: fit(mel), hold, bass, arp: fit(arp.map(m => m + 12)).map(m => m - 12), drums: st.drums, lead: st.lead, soft: !!st.soft };
+}
+const TUNES = {};
+function tuneFor(name) {
+  if (!TUNES[name]) {
+    if (name.startsWith('L')) { const L = LEVELS[+name.slice(1) - 1]; TUNES[name] = buildTune(styleForLevel(L), L.n); }
+    else TUNES[name] = buildTune(name, name === 'think' ? 3 : 1);
+  }
+  return TUNES[name];
+}
+let noiseBuf = null;
 const Music = {
   tune: null, step: 0, next: 0, out: null,
   want(name) {
     if (!AC || !save.music || document.hidden) { this.tune = null; return; }
     if (!this.out) { this.out = AC.createGain(); this.out.gain.value = 1; this.out.connect(AC.destination); }
+    if (!noiseBuf) { noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.3, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
     if (name !== this.tune) { this.tune = name; this.step = 0; this.next = AC.currentTime + 0.15; }
     this.out.gain.setTargetAtTime(Voice.speaking ? 0.3 : 1, AC.currentTime, 0.15); // quieter while someone talks
-    const tn = TUNES[name], dt = 60 / tn.bpm / 2;
+    const tn = tuneFor(name), dt = 60 / tn.bpm / 2, v = tn.soft ? 0.6 : 1;
     while (this.next < AC.currentTime + 0.3) {
-      const m = tn.mel[this.step % tn.mel.length];
-      if (m) this.note(m, this.next, dt * 1.6, tn.wave, tn.vol);
-      const per = tn.mel.length / tn.bass.length * (name === 'think' ? 1 : 0.5);
-      if (this.step % Math.max(1, Math.round(per)) === 0) this.note(tn.bass[Math.floor(this.step / Math.max(1, Math.round(per))) % tn.bass.length], this.next, dt * 3, 'sine', tn.vol * 1.1);
+      const i = this.step % tn.mel.length, t = this.next;
+      if (tn.mel[i]) this.note(tn.mel[i], t, dt * (tn.hold[i] + 0.4), tn.lead, (tn.lead === 'square' ? 0.03 : 0.05) * v);
+      if (tn.bass[i]) this.note(tn.bass[i], t, dt * 0.9, 'triangle', 0.07 * v);
+      if (tn.arp.length) { this.note(tn.arp[i] + 12, t, dt * 0.45, 'sine', 0.022 * v); this.note(tn.arp[(i + 1) % tn.arp.length] + 12, t + dt / 2, dt * 0.45, 'sine', 0.018 * v); }
+      const dr = tn.drums[i % tn.drums.length];
+      if (dr === 'k' || dr === 'b') this.kick(t);
+      if (dr === 's') this.snare(t);
+      if (dr === 'h' || dr === 'b') this.hat(t);
       this.next += dt; this.step++;
     }
   },
@@ -201,11 +275,22 @@ const Music = {
     try {
       const o = AC.createOscillator(), g = AC.createGain();
       o.type = type; o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
       o.connect(g); g.connect(this.out); o.start(t); o.stop(t + d + 0.05);
     } catch (e) {}
   },
+  kick(t) { try { const o = AC.createOscillator(), g = AC.createGain(); o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12); g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16); o.connect(g); g.connect(this.out); o.start(t); o.stop(t + 0.2); } catch (e) {} },
+  noise(t, dur, type, freq, vol) { try { const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); s.buffer = noiseBuf; f.type = type; f.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f); f.connect(g); g.connect(this.out); s.start(t); s.stop(t + dur + 0.02); } catch (e) {} },
+  snare(t) { this.noise(t, 0.12, 'bandpass', 1900, 0.09); },
+  hat(t) { this.noise(t, 0.035, 'highpass', 7500, 0.035); },
 };
+function musicFor(sc) {
+  if (sc instanceof PitStop) return 'think';
+  if (sc instanceof Play) return 'L' + sc.L.n;
+  if (sc instanceof Story && sc.opts.levelN) return 'L' + sc.opts.levelN;
+  if (sc instanceof LevelDone) return 'L' + sc.play.L.n;
+  return 'title';
+}
 
 /* ---------------- input ---------------- */
 const held = { up: false, down: false, left: false, right: false };
@@ -1579,7 +1664,7 @@ class Play {
     if (L.mid && !this.midDone && !this.finished && !this.menu && scene === this && this.progress() >= 0.5) {
       this.midDone = true; releaseAll();
       const me = this;
-      scene = new Story(L.mid, L.theme, () => { scene = me; me.countdown = 2.2; }, { title: L.name, kicker: 'Along the way…' });
+      scene = new Story(L.mid, L.theme, () => { scene = me; me.countdown = 2.2; }, { title: L.name, kicker: 'Along the way…', levelN: L.n });
     }
   }
   objY(o) {
@@ -2037,7 +2122,7 @@ class LevelDone {
     const L = this.play.L;
     if (L.n === 8) scene = new Story(ENDING(), 'ending', () => goMap(9), { title: 'Everyone is home!', kicker: 'End of Chapter 1' });
     else if (L.n === LEVELS.length) scene = new Story(ENDING2(), 'ending', () => goMap(L.n), { title: 'The Golden Numbers are home!', kicker: 'The End' });
-    else scene = new Story(L.outro, L.theme, () => goMap(L.n + 1));
+    else scene = new Story(L.outro, L.theme, () => goMap(L.n + 1), { levelN: L.n });
   }
   update(dt) { this.t += dt; }
   draw() {
@@ -2065,7 +2150,7 @@ function startLevel(n) {
   const L = LEVELS[n - 1];
   save.seenCh = save.seenCh || {};
   const chIntro = CHAPTER_INTRO[n] && !save.seenCh[n] ? CHAPTER_INTRO[n] : [];
-  scene = new Story([...chIntro, ...L.intro], L.theme, () => { if (chIntro.length) { save.seenCh[n] = true; persist(); } scene = new Play(n); }, { title: L.name, kicker: `Level ${n} · ${MODE_LABEL[L.mode]}`, onBack: () => goMap(n) });
+  scene = new Story([...chIntro, ...L.intro], L.theme, () => { if (chIntro.length) { save.seenCh[n] = true; persist(); } scene = new Play(n); }, { title: L.name, kicker: `Level ${n} · ${MODE_LABEL[L.mode]}`, onBack: () => goMap(n), levelN: n });
 }
 class MapScene {
   constructor(focus) { this.sel = clamp(focus || save.unlocked, 1, Math.min(save.unlocked, LEVELS.length)); this.isRoot = false; this.msgT = 0; }
@@ -2307,7 +2392,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
   ctx.setTransform(K, 0, 0, K, 0, 0);
   try { if (scene.update) scene.update(dt); scene.draw(); } catch (e) { console.error(e); }
-  try { Music.want(scene instanceof PitStop ? 'think' : 'adventure'); } catch (e) {}
+  try { Music.want(musicFor(scene)); } catch (e) {}
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

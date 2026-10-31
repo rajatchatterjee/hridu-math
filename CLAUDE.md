@@ -40,9 +40,15 @@ runs in any browser on phones and laptops.
   story (it only leaves a level intro to the map). In pit stops, answering is
   locked until the question has been read. If no voice is available, the
   same lock runs on a reading-time timer (`Voice.done()`).
-- **Music** (`Music`/`TUNES`): generated in code with WebAudio, no files —
-  'adventure' loop everywhere, calm 'think' loop in pit stops; ducks while
-  someone is talking; on/off in Settings.
+- **Music** (`Music`, `STYLES`, `buildTune`): generated in code with WebAudio,
+  no files. Every level has its OWN tune: a style picked from its world/game
+  type (`styleForLevel`: meadow bouncy, jungle drums, desert eastern scale,
+  island calypso, storm driving minor, reef dreamy, snow bells, space
+  whole-tone, mazes sneaky, Number Gates quiz-show, castle march, level 28
+  finale) + a melody/rhythm/tempo generated from the level number (seeded),
+  with synthesized kick/snare/hat and bass. Title/map/settings play 'title',
+  pit stops the calm 'think' tune; a level's stories keep the level's tune
+  (`Story opts.levelN`). Ducks while someone is talking; on/off in Settings.
 - **Outfits** (`OUTFITS`): Space suit (default, from his real top), Pilot
   jacket, Superhero, Cricket kit, Festive kurta, Explorer, Dino hoodie.
   Chosen in Settings (big preview); used everywhere Hridu is drawn.
@@ -151,6 +157,8 @@ rejects as a downgrade.
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Different music for every level (30 unique generated tunes with
+  drums and bass), styled to each world and game type.
 - 2026-10-31: Fix: saves from before chapters 2–5 had `unlocked` capped at 8; on
   load, unlock the level after the highest completed one.
 - 2026-10-31: 20 new levels (9–28) in 4 chapters with star gates, Ziggy story
