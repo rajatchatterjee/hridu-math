@@ -42,3 +42,15 @@ jobs:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Check the game is live
+        # Loads the published page (with a cache-buster) and fails the run if
+        # it is missing, so a broken publish shows up as a red run.
+        run: |
+          url="${{ steps.deployment.outputs.page_url }}hridu-great-rescue.html?check=${{ github.run_id }}"
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /tmp/page.html -w '%{http_code}' "$url")
+            echo "try $i: $code"
+            if [ "$code" = "200" ] && grep -q "Hridu's Great Rescue" /tmp/page.html; then echo "LIVE: $url"; exit 0; fi
+            sleep 10
+          done
+          echo "Game page not reachable at $url"; exit 1
