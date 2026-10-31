@@ -1,9 +1,8 @@
 // Offline support for the installed app. Bump CACHE when shipping changes
 // to the icons/manifest; index.html is always fetched fresh when online.
-const CACHE = 'hridu-v2';
+const CACHE = 'hridu-v3';
 const ASSETS = [
-  './',
-  './index.html',
+  './hridu-great-rescue.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -12,7 +11,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => Promise.all(ASSETS.map(a => c.add(a).catch(() => {})))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -32,8 +31,8 @@ self.addEventListener('fetch', e => {
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req)
-        .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return res; })
-        .catch(() => caches.match('./index.html'))
+        .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; })
+        .catch(() => caches.match(req).then(hit => hit || caches.match('./hridu-great-rescue.html')))
     );
     return;
   }

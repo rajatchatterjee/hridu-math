@@ -4,7 +4,7 @@ A fly-run-and-rescue adventure for kids, with a **Puzzle Pit Stop**
 every few minutes: one math problem and one brain puzzle to refuel Zippy the
 plane before play continues.
 
-- **Play in a browser (phone / laptop):** https://rajatchatterjee.github.io/hridu-math/
+- **Play in a browser (phone / laptop):** https://rajatchatterjee.github.io/hridu-math/hridu-great-rescue.html
 - **Install on a phone, tablet or laptop:** open the link above and choose
   "Install as an app" on the title screen (iPhone/iPad: Share → Add to Home Screen).
 - **Google TV / Android TV APK:** https://github.com/rajatchatterjee/hridu-math/releases/latest/download/hridu-great-rescue.apk

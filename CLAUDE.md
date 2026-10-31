@@ -22,7 +22,10 @@ runs in any browser on phones and laptops.
   `androiddebugkey`) so new builds install over old ones.
 - `.github/workflows/build.yml` — builds the APK on every push to `main` and
   publishes a GitHub Release `build-<run>` with `hridu-great-rescue.apk`.
-- `.github/workflows/pages.yml` — publishes `web/` to GitHub Pages.
+- `.github/workflows/pages.yml` — publishes `web/` to GitHub Pages, renaming
+  the game to `hridu-great-rescue.html`; the site's bare `/hridu-math/` address
+  is a generated redirect to it. (In the repo the file stays `web/index.html`
+  because the APK loads that.) Live: https://rajatchatterjee.github.io/hridu-math/hridu-great-rescue.html
 
 ## Controls
 - TV remote / keyboard: arrows, OK/Enter/Space, Back/Esc (pause or up a screen).
@@ -69,6 +72,8 @@ APK link from the latest Release:
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Web game now lives at `/hridu-great-rescue.html` (Rajat's ask);
+  old folder address redirects; installed app starts there.
 - 2026-10-31: Age removed from story/docs. Web build is now an installable
   PWA (manifest, offline service worker, icons, install button). Math limited
   to two-digit +/−; no repeated questions; bigger opposites list.

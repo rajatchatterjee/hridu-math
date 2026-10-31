@@ -24,8 +24,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Publish the game as hridu-great-rescue.html
+        # The APK loads web/index.html directly; on the website the game lives at
+        # /hridu-great-rescue.html and the bare folder address forwards there.
+        run: |
+          cp -r web _site
+          mv _site/index.html _site/hridu-great-rescue.html
+          cat > _site/index.html <<'HTML'
+          <!doctype html><html lang="en"><head><meta charset="utf-8">
+          <title>Hridu's Great Rescue</title>
+          <meta http-equiv="refresh" content="0; url=hridu-great-rescue.html">
+          <script>location.replace('hridu-great-rescue.html' + location.search + location.hash);</script>
+          </head><body><a href="hridu-great-rescue.html">Play Hridu's Great Rescue</a></body></html>
+          HTML
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -3,7 +3,7 @@
   "short_name": "Hridu",
   "description": "Fly, run and rescue zoo friends — with a puzzle pit stop every few minutes.",
   "id": "./",
-  "start_url": "./",
+  "start_url": "./hridu-great-rescue.html",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
