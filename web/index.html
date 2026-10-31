@@ -920,9 +920,9 @@ const LEVELS = [
     intro: [{ who: 'dolly', text: "Hi Hridu, I'm Dolly the dolphin! Hold on to my fin — we'll swim through the coral. Watch out for the stingy jellyfish!" }],
     mid: [{ who: 'hridu', text: 'Look, Dolly! A trail of golden sparkles in the water... Ziggy must have swum this way!' }, { who: 'dolly', text: 'Then let\'s follow it — faster!' }],
     outro: [{ who: 'dolly', text: 'We found the first Golden Number — number 10! It was stuck in the coral.' }] },
-  { n: 10, name: 'Number Clouds', mode: 'gates', theme: 'hills', speed: 230, goal: 10, gateGap: 1.1, gap: [1.6, 2.4], obs: { star: 2 },
+  { n: 10, name: 'Number Clouds', mode: 'gates', theme: 'hills', speed: 175, goal: 8, gateGap: 1.3, gap: [1.6, 2.4], obs: { star: 2 },
     blurb: 'Fly through the right answer', tip: '▲ ▼ to pick the cloud with the right answer',
-    intro: [{ who: 'zippy', text: 'Ziggy hid numbers in the clouds! Read the sum, then fly through the cloud with the right answer. The wrong cloud gives us a bump!' }],
+    intro: [{ who: 'zippy', text: 'Ziggy hid numbers in the clouds! Read the sum, then fly through the cloud with the right answer. Get eight right to clear the sky!' }],
     mid: [{ who: 'grumble', mood: 'happy', text: "You're doing great, Hridu! I'm keeping the storm far away for you." }],
     outro: [{ who: 'zippy', text: 'Every cloud cleared! Golden number 20 is back!' }] },
   { n: 11, name: 'Shell Catch', mode: 'catch', theme: 'beach', goal: 40, rate: 1.1, bad: 0.3, goodItem: 'shell', badItem: 'coconut', fall: [220, 320],
@@ -956,10 +956,10 @@ const LEVELS = [
     intro: [{ who: 'zippy', text: 'Avalanche! Snow is flying everywhere. Dodge the snowballs and the mountain eagles!' }],
     mid: [{ who: 'zippy', text: 'Hold steady, captain! The wind up here is wild!' }],
     outro: [{ who: 'zippy', text: 'Phew, we are above the snow! Golden number 70 was riding the avalanche.' }] },
-  { n: 17, name: 'Number Peaks', mode: 'gates', theme: 'snow', speed: 250, goal: 12, gateGap: 1.0, gap: [1.3, 2.0], obs: { star: 2 },
-    blurb: 'Tricky sums on the peaks', tip: '▲ ▼ to pick the right answer',
-    intro: [{ who: 'hoot', text: 'Each mountain peak has three answers. These sums are trickier — some have two steps. Think carefully!' }],
-    mid: [{ who: 'hoot', text: 'Remember: for two steps, do the first part, then the second part.' }],
+  { n: 17, name: 'Number Peaks', mode: 'gates', theme: 'snow', speed: 185, goal: 10, gateGap: 1.2, gap: [1.3, 2.0], obs: { star: 2 },
+    blurb: 'Sums on the mountain peaks', tip: '▲ ▼ to pick the right answer',
+    intro: [{ who: 'hoot', text: 'Each mountain peak has three answers. Read the sum, then fly to the right one. Get ten right!' }],
+    mid: [{ who: 'hoot', text: 'Remember: add the tens first, then the ones.' }],
     outro: [{ who: 'hoot', text: 'Hoo-hoo! Golden number 80 found on the highest peak!' }] },
   { n: 18, name: 'Snowflake Catch', mode: 'catch', theme: 'snow', goal: 50, rate: 1.4, bad: 0.38, goodItem: 'snowflake', badItem: 'icicle', fall: [260, 380],
     blurb: 'Catch snowflakes, dodge icicles', tip: '◀ ▶ to move · catch snowflakes · dodge icicles',
@@ -977,9 +977,9 @@ const LEVELS = [
     intro: [{ who: 'hridu', text: 'The moon craters make a giant maze! Collect the moon crystals — and watch out for the bouncy moon bugs.' }],
     mid: [{ who: 'zippy', text: 'Hridu, the crystals are glowing brighter. We are close!' }],
     outro: [{ who: 'hridu', text: 'The crystals opened the moon door! Another golden number is ours.' }] },
-  { n: 21, name: 'Star Catch', mode: 'catch', theme: 'space', mathCatch: true, goal: 12, rate: 0.9, bad: 0.4, goodItem: 'star', badItem: 'meteor', fall: [200, 280],
+  { n: 21, name: 'Star Catch', mode: 'catch', theme: 'space', mathCatch: true, goal: 10, rate: 0.8, bad: 0.35, goodItem: 'star', badItem: 'meteor', fall: [200, 280],
     blurb: 'Catch the star with the answer', tip: '◀ ▶ to move · catch the RIGHT answer',
-    intro: [{ who: 'hoot', text: 'Hridu, catch only the number ball with the right answer to the sum. The wrong ones — and the meteors — give you a bump!' }],
+    intro: [{ who: 'hoot', text: 'Hridu, catch only the number ball with the right answer to the sum. And watch out — the meteors give you a bump!' }],
     mid: [{ who: 'hoot', text: 'Brilliant catching! Keep your eyes on the sum.' }],
     outro: [{ who: 'hridu', text: 'We caught every right answer! Ziggy must be close now.' }] },
   { n: 22, name: 'Asteroid Alley', mode: 'space', theme: 'space', speed: 420, length: 46000, gap: [0.6, 1.1], obs: { asteroid: 6, fuel: 2, ring: 1 },
@@ -987,7 +987,7 @@ const LEVELS = [
     intro: [{ who: 'zippy', text: 'Asteroid Alley! Lots of rocks, very fast. I trust you, captain!' }],
     mid: [{ who: 'grumble', mood: 'happy', text: "I'm sending you good-luck winds all the way from Earth!" }],
     outro: [{ who: 'ziggy', mood: 'sad', text: 'You... you came all the way to space just to find me?' }] },
-  { n: 23, name: 'Planet Gates', mode: 'gates', theme: 'space', vehicle: 'rocket', speed: 260, goal: 12, gateGap: 0.95, gap: [1.2, 1.9], obs: { fuel: 2 },
+  { n: 23, name: 'Planet Gates', mode: 'gates', theme: 'space', vehicle: 'rocket', speed: 190, goal: 10, gateGap: 1.2, gap: [1.2, 1.9], obs: { fuel: 2 },
     blurb: "Ziggy's planet puzzles", tip: '▲ ▼ to pick the planet with the right answer',
     intro: [{ who: 'ziggy', mood: 'sneaky', text: 'If you can answer ALL my planet puzzles, I will tell you where the last numbers are!' }],
     mid: [{ who: 'ziggy', mood: 'happy', text: "Wow... you're really, really good at numbers." }],
@@ -1008,9 +1008,9 @@ const LEVELS = [
     intro: [{ who: 'hoot', text: "Ziggy's guards locked our friends on floating clouds. Rescue all ten!" }],
     mid: [{ who: 'grumble', mood: 'happy', text: "I'll keep the lightning away from Zippy — you fly!" }],
     outro: [{ who: 'hridu', text: 'Everyone is safe! Now let\'s find Ziggy.' }] },
-  { n: 27, name: 'Number Storm', mode: 'gates', theme: 'storm', speed: 270, goal: 14, gateGap: 0.9, gap: [1.1, 1.8], obs: { star: 2 },
-    blurb: 'The hardest sums in the sky', tip: '▲ ▼ to pick the right answer · two-step sums!',
-    intro: [{ who: 'ziggy', mood: 'sneaky', text: 'Last test! The hardest sums in the whole sky. Ready, Hridu?' }],
+  { n: 27, name: 'Number Storm', mode: 'gates', theme: 'storm', speed: 200, goal: 12, gateGap: 1.1, gap: [1.1, 1.8], obs: { star: 2 },
+    blurb: "Ziggy's last number test", tip: '▲ ▼ to pick the right answer',
+    intro: [{ who: 'ziggy', mood: 'sneaky', text: 'Last test! My trickiest sums in the whole sky. Ready, Hridu?' }],
     mid: [{ who: 'ziggy', mood: 'happy', text: "You're amazing! How do you do that so fast?" }, { who: 'hridu', text: 'Practice! And Professor Hoot\'s pit stops!' }],
     outro: [{ who: 'ziggy', mood: 'sad', text: "You win... I'm sorry I took the numbers." }] },
   { n: 28, name: 'Grand Finale', mode: 'fly', theme: 'storm', speed: 420, length: 52000, gap: [0.6, 1.1], obs: { ring: 2, star: 1, bird: 3, thunder: 3 }, wind: true,
@@ -1226,13 +1226,16 @@ function makeMath(b) {
   const o = numOptions(ans, 10);
   return { cat: 'Math', prompt: p, options: o.options, ans: o.ans, value: ans, hint, typed: true };
 }
-// A plain sum for the Number Gates / math-catch levels: question + 3 choices.
-function gateQuestion(b) {
+// A sum for the Number Gates / math-catch levels (they move, so keep them
+// EASY — Rajat's ask): two-digit +/−, no carrying/borrowing until the last
+// chapter, never two-step, and the wrong choices are 10 or 20 away so they
+// are easy to tell apart.
+function gateQuestion(level) {
+  const tricky = level >= 24 && Math.random() < 0.4; // last chapter: some carrying/borrowing
   let p, ans;
-  if (b >= 4 && Math.random() < 0.35) { const t = twoStep(); ans = t.ans; p = t.op === '+-' ? `${t.a} + ${t.c} − ${t.d}` : `${t.a} − ${t.c} + ${t.d}`; }
-  else if (Math.random() < 0.5) { const [a, c] = twoDigitAdd(Math.max(b, 2)); ans = a + c; p = `${a} + ${c}`; }
-  else { const [a, c] = twoDigitSub(Math.max(b, 2)); ans = a - c; p = `${a} − ${c}`; }
-  const pool = shuffle([ans + 10, ans - 10, ans + 1, ans - 1, ans + 2, ans - 2, ans + 11, ans - 9].filter(v => v >= 10 && v <= 99 && v !== ans));
+  if (Math.random() < 0.55) { const [a, c] = twoDigitAdd(tricky ? 2 : 0); ans = a + c; p = `${a} + ${c}`; }
+  else { const [a, c] = twoDigitSub(tricky ? 2 : 0); ans = a - c; p = `${a} − ${c}`; }
+  const pool = shuffle([ans + 10, ans - 10, ans + 20, ans - 20].filter(v => v >= 10 && v <= 99));
   const opts = shuffle([ans, pool[0], pool[1]]);
   return { prompt: p, ans, opts };
 }
@@ -1787,7 +1790,7 @@ class Play {
     this.objs.push({ t: 'island', wx: this.dist + W + 160, friend: type, got: false });
   }
   spawnGate() {
-    const q = gateQuestion(band(this.L.n));
+    const q = gateQuestion(this.L.n);
     const g = { t: 'gate', wx: this.dist + W + 220, q, done: false };
     this.objs.push(g); this.gate = g; this.gatesSpawned++;
     Voice.say(q.prompt + ' = ?', 'hoot');
@@ -1797,7 +1800,7 @@ class Play {
     g.done = true; g.chosen = this.lane; this.gate = null; this.gatesDone++;
     const ok = q.opts[this.lane] === q.ans;
     if (ok) { this.gatesRight++; this.score += 3; SFX.pick(); this.sparkle(p.x + 60, p.y, '#FFC21A'); this.addFloat(p.x + 60, p.y - 70, 'Correct! +3', '#FFFFFF'); Voice.say(pick(['Correct!', 'Yes!', 'Great maths!', 'Super!']), 'hoot'); }
-    else { this.inv = 0; this.hit(); this.addFloat(p.x + 140, p.y - 70, 'Not that one!', '#FFE88A'); Voice.say('Oops! Not that one.', 'hoot'); }
+    else { this.mathWrong = (this.mathWrong || 0) + 1; SFX.bad(); this.shake = 0.2; this.addFloat(p.x + 140, p.y - 70, 'Not that one!', '#FFE88A'); Voice.say('Oops! Not that one.', 'hoot'); }
     this.nextGate = this.dist + (L.gateGap || 1.2) * L.speed;
     if (this.gatesRight >= L.goal && this.hearts > 0) { this.finished = true; SFX.win(); }
   }
@@ -1824,7 +1827,7 @@ class Play {
     this.items.push({ x: rand(80, W - 80), y: -30, vy: rand(L.fall[0], L.fall[1]) * (1 + k * 0.35), kind: bad ? L.badItem : L.goodItem, bad, golden });
   }
   spawnOrbs() {
-    const q = gateQuestion(band(this.L.n)); this.mq = q;
+    const q = gateQuestion(this.L.n); this.mq = q;
     const xs = shuffle([W * 0.22, W * 0.5, W * 0.78]);
     q.opts.forEach((v, i) => this.items.push({ orb: true, val: v, x: xs[i] + rand(-40, 40), y: -40 - i * 30, vy: rand(105, 135) }));
     Voice.say(`Catch ${q.prompt}!`, 'hoot');
@@ -1834,7 +1837,7 @@ class Play {
     if (it.orb) {
       const q = this.mq;
       if (it.val === q.ans) { this.caught++; this.score += 3; SFX.pick(); this.sparkle(p.x, CATCH_Y - 30, '#FFC21A'); this.addFloat(p.x, CATCH_Y - 120, 'Correct! +3'); Voice.say(pick(['Correct!', 'Yes!', 'Great catch!']), 'hoot'); }
-      else { this.inv = 0; this.hit(); this.addFloat(p.x, CATCH_Y - 120, 'Not that one!', '#FFE88A'); Voice.say('Oops! Not that one.', 'hoot'); }
+      else { this.mathWrong = (this.mathWrong || 0) + 1; SFX.bad(); this.shake = 0.2; this.addFloat(p.x, CATCH_Y - 120, 'Not that one!', '#FFE88A'); Voice.say('Oops! Not that one.', 'hoot'); }
       this.items.forEach(i => { if (i.orb) i.done = true; }); this.mq = null; this.orbT = 1.2;
     } else if (it.bad) this.hit();
     else { const v = it.golden ? 3 : 1; if (!L.mathCatch) this.caught += v; this.score += v; SFX.coin(); this.sparkle(it.x, CATCH_Y - 20, it.golden ? '#FFC21A' : '#FFFFFF'); if (it.golden) this.addFloat(it.x, CATCH_Y - 100, '+3'); }
@@ -2154,7 +2157,12 @@ class Play {
 }
 
 function levelComplete(play) {
-  const n = play.L.n, stars = Math.max(1, play.hearts);
+  const n = play.L.n, L = play.L;
+  let stars = Math.max(1, play.hearts);
+  if (L.mode === 'gates' || L.mathCatch) {
+    const right = L.mode === 'gates' ? play.gatesRight : play.caught, acc = right / Math.max(1, right + (play.mathWrong || 0));
+    play.accuracy = acc; stars = Math.min(stars, acc >= 0.8 ? 3 : acc >= 0.6 ? 2 : 1);
+  }
   save.stars[n] = Math.max(save.stars[n] || 0, stars);
   save.unlocked = Math.max(save.unlocked, Math.min(LEVELS.length, n + 1));
   persist();
@@ -2179,7 +2187,7 @@ class LevelDone {
     text('Level complete!', W / 2, 180, 56, INK, 'center', 700);
     text(this.play.L.name, W / 2, 236, 30, '#4A5672', 'center', 600);
     for (let i = 0; i < 3; i++) { const s = clamp((this.t - 0.3 - i * 0.3) * 4, 0, 1); drawStar(W / 2 - 130 + i * 130, 340, 50 * (i < this.stars ? s : 1), i < this.stars ? '#FFC21A' : '#E3E7EF', i < this.stars ? '#E09A00' : null); }
-    text(`Collected: ${this.play.score}`, W / 2, 440, 32, INK, 'center', 700);
+    text(this.play.accuracy != null ? `Right answers: ${Math.round(this.play.accuracy * 100)}%` : `Collected: ${this.play.score}`, W / 2, 440, 32, INK, 'center', 700);
     drawHridu(W / 2, 520, 1.0, { cheer: true, wave: true });
     if ((T % 1) < 0.7) text(usingTouch ? 'Tap to continue' : 'Press OK to continue', W / 2, 650, 28, '#FFFFFF', 'center', 700);
   }

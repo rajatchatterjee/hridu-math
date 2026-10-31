@@ -93,6 +93,12 @@ runs in any browser on phones and laptops.
   Counter top-left. Reaching the finish line short of it keeps the level
   going ("Collect N more…") until met. Number Gates need N CORRECT answers
   (wrong ones don't count); rescue/catch/maze already require their goal.
+- **In-game sums are EASY (Rajat: Number Clouds was too hard):** `gateQuestion`
+  — two-digit +/−, no carrying/borrowing (except ~40% in levels 24+), never
+  two-step, wrong choices are ±10/±20. Gates move slowly (~6 s to read each
+  sum), goals 8–12. A wrong cloud/ball does NOT cost a heart; stars come from
+  first-time accuracy (≥80% → 3★, ≥60% → 2★), so guessing still only earns 1★.
+  Harder sums (carrying, missing numbers, two-step) live in the pit stops.
 - **No edge camping (he hid at the top of the screen):** in fly/dive/space/
   rescue the top (and bottom, except rescue) edges are hazards — lingering
   >0.45 s costs a heart and bounces him back; ~35% of obstacles spawn at his
@@ -168,6 +174,8 @@ rejects as a downgrade.
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Number Gates / Star Catch made easier (no-carry sums, ±10/20
+  choices, slower, fewer); wrong answers don't cost hearts; stars by accuracy.
 - 2026-10-31: Every level needs X items collected to finish; Number Gates need
   N correct answers; dangerous screen edges + aimed obstacles stop camping.
 - 2026-10-31: Different music for every level (30 unique generated tunes with
