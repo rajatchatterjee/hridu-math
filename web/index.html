@@ -53,6 +53,8 @@ function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save));
 const params = new URLSearchParams(location.search);
 const BREAK_OVERRIDE = +params.get('break') || 0;
 if (save.interval !== 3 && save.interval !== 5) save.interval = 5; // only 3 or 5 min allowed
+// Older versions capped progress at level 8: unlock the level after the highest one completed.
+{ const done = Object.keys(save.stars || {}).map(Number).filter(n => save.stars[n] > 0); if (done.length) save.unlocked = Math.max(save.unlocked, Math.min(28, Math.max(...done) + 1)); }
 const breakEvery = () => BREAK_OVERRIDE || save.interval * 60;
 if (+params.get('level')) save.unlocked = Math.max(save.unlocked, Math.min(28, +params.get('level')));
 

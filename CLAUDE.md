@@ -151,6 +151,8 @@ rejects as a downgrade.
   intentionally NOT in the repo (public repo).
 
 ## History
+- 2026-10-31: Fix: saves from before chapters 2–5 had `unlocked` capped at 8; on
+  load, unlock the level after the highest completed one.
 - 2026-10-31: 20 new levels (9–28) in 4 chapters with star gates, Ziggy story
   arc, unskippable mid-level stories; 5 new game types (dive, space, gates,
   catch, maze); pit stops = 2 math + 1 puzzle; anti-guessing rules (answers
