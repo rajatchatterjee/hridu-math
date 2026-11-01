@@ -1492,7 +1492,7 @@ function teachSteps(col, prompt, replay) {
       st.push({ hi: 'tens', min: 1, say: `Then the tens: ${at - 1} take away ${ct}.` });
     } else st.push({ hi: 'tens', min: 1.2, say: `Then the tens: ${at} take away ${ct}.` });
   }
-  st.push({ hi: 'ans', min: 0.8, say: 'Now you work it out! Type the tens, then the ones.' });
+  st.push({ hi: 'ans', min: 0.8, say: 'Now you work it out! Fill in the ones or the tens first, you choose.' });
   return st;
 }
 const easeOut = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
@@ -1515,6 +1515,7 @@ class PitStop {
       this.qq = freshQuestion(() => makePuzzle(b, kind), () => makePuzzle(b, pick(['numSeq', 'shapeSeq', 'count', 'biggest'])));
     }
     this.sel = 0; this.wrongPick = -1; this.tries = 0; this.feedback = ''; this.typed = ''; this.pad = 0;
+    this.slots = ['', '']; this.slot = 1; this.focus = 'pad'; // column sums: fill ones or tens in any order (starts on ones)
     this.teaching = false; this.marks = {}; this.hi = null; this.caption = '';
   }
   // Walk through the column method; answering is locked until it's done.
@@ -1553,6 +1554,14 @@ class PitStop {
     if (this.state !== 'q' || this.locked) return;
     if (this.entry) {
       const r = Math.floor(this.pad / 3), c = this.pad % 3;
+      if (this.q.col && this.focus === 'box') { // choosing a box with the remote
+        if (a === 'left' && this.slot === 1) { this.slot = 0; SFX.move(); }
+        else if (a === 'left' || (a === 'right' && this.slot === 0)) { this.slot = 1; SFX.move(); }
+        else if (a === 'right' || a === 'ok' || a === 'up' || a === 'down') { this.focus = 'pad'; SFX.move(); }
+        else if (a === 'del' || a === 'back') this.press('del');
+        return;
+      }
+      if (this.q.col && a === 'left' && c === 0) { this.focus = 'box'; this.slot = 1; SFX.move(); return; }
       if (a === 'left' && c > 0) { this.pad--; SFX.move(); }
       else if (a === 'right' && c < 2) { this.pad++; SFX.move(); }
       else if (a === 'up' && r > 0) { this.pad -= 3; SFX.move(); }
@@ -1569,6 +1578,15 @@ class PitStop {
   onDigit(d) { if (this.state === 'q' && this.entry && !this.locked) { this.pad = PAD.indexOf(d); this.press(d); } }
   press(k) {
     if (this.state !== 'q') return;
+    if (this.q.col) { // two boxes, any order
+      const o = 1 - this.slot;
+      if (k === 'del') { if (this.slots[this.slot]) this.slots[this.slot] = ''; else if (this.slots[o]) { this.slots[o] = ''; this.slot = o; } else return; SFX.move(); this.typed = this.slots.join(''); return; }
+      if (k === 'go') { this.submit(); return; }
+      this.slots[this.slot] = k; SFX.move();
+      if (!this.slots[o]) this.slot = o; else this.pad = PAD.indexOf('go');
+      this.typed = this.slots.join(''); this.feedback = '';
+      return;
+    }
     if (k === 'del') { if (this.typed) { this.typed = this.typed.slice(0, -1); SFX.move(); } return; }
     if (k === 'go') { this.submit(); return; }
     if (this.typed.length >= 2) return;
@@ -1577,9 +1595,10 @@ class PitStop {
   }
   submit() {
     if (!this.typed) { this.feedback = 'Type your answer first, then press ✓'; return; }
+    if (this.q.col && (!this.slots[0] || !this.slots[1])) { this.feedback = `Fill in the ${this.slots[0] ? 'ones' : 'tens'} box too, then press ✓`; this.slot = this.slots[0] ? 1 : 0; return; }
     this.tries++;
     if (Number(this.typed) === this.q.value) { this.correct(); return; }
-    SFX.bad(); this.shake = 0.4; this.typed = ''; this.pad = 0;
+    SFX.bad(); this.shake = 0.4; this.typed = ''; this.pad = 0; this.slots = ['', '']; this.slot = 1;
     if (this.tries >= 2) { this.newOne(); return; }
     if (this.q.col) { this.feedback = 'Not quite. Watch the steps again, then try!'; this.lockUntil = T + 1; this.startTeach(true); this.caption = 'Not quite. Let\'s look again. ' + this.caption; Voice.say(this.caption, 'hoot'); return; }
     this.feedback = 'Not quite. Hint: ' + this.q.hint + ' Think, then try again!';
@@ -1600,7 +1619,10 @@ class PitStop {
     if (this.state === 'intro' || this.state === 'done' || this.state === 'explain') { this.onAction('ok'); return; }
     if (this.state !== 'q' || this.locked) return;
     const hit = r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
-    if (this.entry) { this.padRects().forEach((r, i) => { if (hit(r)) { this.pad = i; this.press(PAD[i]); } }); return; }
+    if (this.entry) {
+      if (this.q.col && this.boxRects) this.boxRects.forEach((r, i) => { if (hit(r)) { this.slot = i; this.focus = 'pad'; SFX.move(); } });
+      this.padRects().forEach((r, i) => { if (hit(r)) { this.focus = 'pad'; this.pad = i; this.press(PAD[i]); } }); return;
+    }
     this.optRects().forEach((r, k) => { if (hit(r)) { this.sel = k; this.pickOption(k); } });
   }
   update(dt) {
@@ -1708,14 +1730,17 @@ class PitStop {
     const onesStruck = this.marks.borrow !== undefined && T - this.marks.borrow > 1.3;
     if (p1 > 0) { fly(A[0], 0, 'a', r1, p1, tensStruck ? '#9AA3BD' : COL_TENS); fly(A[1], 1, 'a', r1, p1, onesStruck ? '#9AA3BD' : COL_ONES); }
     const ansBoxes = (y, h) => {
+      this.boxRects = [];
+      const typing = this.state === 'q' && !this.locked;
       for (let i = 0; i < 2; i++) {
         const x = (i === 0 ? tensX : onesX) - 58 + sx;
-        const on = this.hi === 'ans' && (T % 0.8) < 0.5;
-        if (on) fillRR(x - 7, y - 7, 130, h + 14, 30, '#FFD65A');
+        this.boxRects.push({ x: x - 10, y: y - 10, w: 136, h: h + 20 });
+        const on = (this.hi === 'ans' && (T % 0.8) < 0.5) || (typing && i === this.slot);
+        if (on) fillRR(x - 8, y - 8, 132, h + 16, 30, this.focus === 'box' && typing ? '#FF9F1A' : '#FFD65A');
         fillRR(x, y, 116, h, 24, right ? '#2E9C5B' : explain ? '#5A668A' : '#FFFFFF');
-        const d = explain ? '' : (this.typed[i] || '');
+        const d = explain ? '' : (this.slots[i] || '');
         if (d) text(d, x + 58, y + h / 2 + 4, 84, right ? '#FFFFFF' : INK, 'center', 700);
-        else if (!explain && !this.locked && i === this.typed.length && !right && (T % 1) < 0.6) fillRR(x + 28, y + h - 22, 60, 10, 5, '#FFC21A');
+        else if (typing && i === this.slot && !right && (T % 1) < 0.6) fillRR(x + 28, y + h - 22, 60, 10, 5, '#FFC21A');
       }
     };
     if (p2 > 0) {
@@ -1759,7 +1784,7 @@ class PitStop {
       fl.forEach((ln, k) => text(ln, cx, fy + 23 + k * 29, 23, right ? '#FFFFFF' : INK, 'center', 700));
       if (this.teaching) drawSpeaker(cx + 340, fy - 20, '#FFE88A');
       if (explain && !this.locked && (T % 1) < 0.7) text(usingTouch ? 'Tap ▶ for a new one' : 'OK ▶ for a new one', W - 30, H - 20, 24, '#FFE88A', 'right', 700);
-    } else if (!this.locked) text(usingTouch ? 'Tap the numbers, then ✓' : 'Type the answer, or use ◀ ▶ ▲ ▼ and OK', cx, Math.min(y + 20, H - 24), 24, '#D5DDF2', 'center', 600);
+    } else if (!this.locked) text(usingTouch ? 'Tap a box, then a number. Any order! Then ✓' : 'Ones or tens first, you choose: ◀ from the pad picks a box', cx, Math.min(y + 20, H - 24), 24, '#D5DDF2', 'center', 600);
   }
   drawVisual(v) {
     if (v.kind === 'seq' || v.kind === 'shapes') {
@@ -1809,7 +1834,7 @@ class PitStop {
   }
   drawPad() {
     this.padRects().forEach((r, i) => {
-      const k = PAD[i], sel = i === this.pad && this.state === 'q';
+      const k = PAD[i], sel = i === this.pad && this.state === 'q' && !(this.q.col && this.focus === 'box');
       ctx.globalAlpha = this.state === 'q' && !this.locked ? 1 : 0.5;
       if (sel) fillRR(r.x - 8, r.y - 8, r.w + 16, r.h + 16, 30, '#FFC21A');
       const bg = k === 'go' ? '#2E9C5B' : k === 'del' ? '#5A668A' : '#FFFFFF';

@@ -133,6 +133,13 @@ runs in any browser on phones and laptops.
   Typing is locked until the walkthrough ends (it can't be skipped). First
   wrong answer replays the steps; second → a different question as before.
   Two-step sums keep the plain layout.
+- **Any order (Rajat's ask):** in column sums he fills the ones or the tens
+  box first, whichever he likes (`slots`, `slot`). It starts on the ones box
+  (the method starts there); after a digit the cursor jumps to the other
+  empty box. Touch: tap a box to choose it. TV: ◀ from the pad's left
+  column moves into the boxes (◀ ▶ pick tens/ones, OK/▶ back to the pad);
+  remote number keys type into the chosen box. ⌫ clears the chosen box (or
+  the other one if it's empty). ✓ with one box empty asks for the other.
 - Every question must be new: `freshQuestion()` keys each question and skips
   any of the last 600 seen (stored in `save.seen`); puzzle kinds rotate through
   a shuffled bag (number pattern, shape pattern, odd-one-out, counting,
@@ -208,6 +215,7 @@ rejects as a downgrade.
   full!" gets fireworks, confetti and a fanfare.
 
 ## History
+- 2026-11-01: Column sums: fill the ones or tens box in any order.
 - 2026-11-01: Pit-stop sums shown in columns with an animated, voiced
   walkthrough of carrying and borrowing (method only, never the answer).
 - 2026-10-31: Fix: no voice-over on iPhone/iPad (Safari speech unlock on first tap,
