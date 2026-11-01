@@ -119,6 +119,20 @@ runs in any browser on phones and laptops.
   3–4 mixed + short story problems · 5–8 mostly carrying/borrowing · 9–16 +
   missing-number (`45 + ? = 72`) and story forms · 17–28 + two-step sums
   (`34 + 25 − 18`, every in-between result also 10–99).
+- **Column maths (Rajat's ask, `teachSteps` + `PitStop.drawColumn`):** every
+  pit-stop add/subtract (plain, story, missing-number) is shown stacked —
+  tens under tens (blue), ones under ones (orange), a line, and the two
+  answer boxes under it (missing-number: boxes in the second row, total
+  under the line). Hoot then walks through the METHOD, one voiced step at a
+  time, with the active column glowing: digits fly down from the written
+  sum into the column → "start with the ones" → carry (a "1 ten" bubble hops
+  over to the top of the tens) or borrow (tens digit crossed out and one
+  less written above, a "10" hops to the ones, ones digit crossed out and
+  +10 written above) → "then the tens" (+ "the 1 we carried") → "Now you
+  work it out!". It never writes or says an answer digit or a column result.
+  Typing is locked until the walkthrough ends (it can't be skipped). First
+  wrong answer replays the steps; second → a different question as before.
+  Two-step sums keep the plain layout.
 - Every question must be new: `freshQuestion()` keys each question and skips
   any of the last 600 seen (stored in `save.seen`); puzzle kinds rotate through
   a shuffled bag (number pattern, shape pattern, odd-one-out, counting,
@@ -194,6 +208,8 @@ rejects as a downgrade.
   full!" gets fireworks, confetti and a fanfare.
 
 ## History
+- 2026-11-01: Pit-stop sums shown in columns with an animated, voiced
+  walkthrough of carrying and borrowing (method only, never the answer).
 - 2026-10-31: Fix: no voice-over on iPhone/iPad (Safari speech unlock on first tap,
   delay after cancel, play through the silent switch).
 - 2026-10-31: Grand celebrations after every level, chapter, target and pit stop.

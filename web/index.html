@@ -1314,7 +1314,7 @@ function makeMath(b) {
   const forms = [['add', 'sub'], ['add', 'sub', 'add', 'sub', 'storyAdd', 'storySub'], ['add', 'sub', 'missAdd', 'missSub', 'storyAdd', 'storySub'], ['add', 'sub', 'missAdd', 'missSub', 'storyAdd', 'storySub'],
     ['add', 'sub', 'missAdd', 'missSub', 'storyAdd', 'storySub', 'two', 'two', 'twoStory']][Math.min(b, 4)];
   const f = pick(forms);
-  let p, ans, hint;
+  let p, ans, hint, col = null;
   if (f === 'two' || f === 'twoStory') {
     const t = twoStep(); ans = t.ans;
     p = f === 'two' ? (t.op === '+-' ? `${t.a} + ${t.c} − ${t.d} = ?` : `${t.a} − ${t.c} + ${t.d} = ?`) : pick(TWO_STEP_STORIES)(t);
@@ -1325,18 +1325,18 @@ function makeMath(b) {
   if (f === 'add' || f === 'missAdd' || f === 'storyAdd') {
     const [a, c, carry] = twoDigitAdd(b), sum = a + c;
     const how = carry ? `Add the ones first. They make 10 or more, so carry 1 ten over to the tens!` : `Add the tens first, then add the ones.`;
-    if (f === 'add') { p = `${a} + ${c} = ?`; ans = sum; hint = how; }
-    else if (f === 'missAdd') { p = `${a} + ? = ${sum}`; ans = c; hint = `Start at ${a} and count up to ${sum} — in tens first, then ones.`; }
-    else { p = pick(ADD_STORIES)(a, c); ans = sum; hint = `Write it as a sum: ${a} plus ${c}. ` + how; }
+    if (f === 'add') { p = `${a} + ${c} = ?`; ans = sum; hint = how; col = { op: '+', a, c, carry }; }
+    else if (f === 'missAdd') { p = `${a} + ? = ${sum}`; ans = c; hint = `Start at ${a} and count up to ${sum} — in tens first, then ones.`; col = { op: '+', a, total: sum, miss: true }; }
+    else { p = pick(ADD_STORIES)(a, c); ans = sum; hint = `Write it as a sum: ${a} plus ${c}. ` + how; col = { op: '+', a, c, carry, story: true }; }
   } else {
     const [a, c, borrow] = twoDigitSub(b), diff = a - c;
     const how = borrow ? `The ones on top are smaller, so borrow 1 ten first, then take away.` : `Take away the tens first, then take away the ones.`;
-    if (f === 'sub') { p = `${a} − ${c} = ?`; ans = diff; hint = how; }
-    else if (f === 'missSub') { p = `${a} − ? = ${diff}`; ans = c; hint = `How much do you take away from ${a} to be left with ${diff}? Count down in tens, then ones.`; }
-    else { p = pick(SUB_STORIES)(a, c); ans = diff; hint = `Write it as a take-away: ${a} minus ${c}. ` + how; }
+    if (f === 'sub') { p = `${a} − ${c} = ?`; ans = diff; hint = how; col = { op: '-', a, c, borrow }; }
+    else if (f === 'missSub') { p = `${a} − ? = ${diff}`; ans = c; hint = `How much do you take away from ${a} to be left with ${diff}? Count down in tens, then ones.`; col = { op: '-', a, total: diff, miss: true }; }
+    else { p = pick(SUB_STORIES)(a, c); ans = diff; hint = `Write it as a take-away: ${a} minus ${c}. ` + how; col = { op: '-', a, c, borrow, story: true }; }
   }
   const o = numOptions(ans, 10);
-  return { cat: 'Math', prompt: p, options: o.options, ans: o.ans, value: ans, hint, typed: true };
+  return { cat: 'Math', prompt: p, options: o.options, ans: o.ans, value: ans, hint, typed: true, col };
 }
 // A sum for the Number Gates / math-catch levels. They move, so keep them
 // EASY (Rajat's ask): SINGLE digits only (1–9 + 1–9, or 9 − 3), never
@@ -1461,6 +1461,43 @@ function makePuzzleRaw(b, t) {
 //    hint + 3 s think-time; a second wrong answer swaps in a NEW question;
 //  - multiple-choice puzzles: ONE try. A wrong pick gets a hint and a NEW
 //    puzzle (the right option is never highlighted).
+/* Column maths walkthrough (Rajat's ask): the two numbers are stacked tens
+   under tens, ones under ones, and Hoot walks through the METHOD step by
+   step: ones first, carry 1 ten / borrow 1 ten (animated), then the tens.
+   It never works out an answer digit — Hridu types those himself. */
+function teachSteps(col, prompt, replay) {
+  const st = [], a = col.a, at = Math.floor(a / 10), ao = a % 10;
+  const plus = col.op === '+';
+  if (!replay) {
+    if (col.miss) st.push({ anim: 'stack', min: 1.4, say: plus ? `${a} plus what number makes ${col.total}? Let's stack them: tens under tens, ones under ones.` : `${a} take away what number leaves ${col.total}? Let's stack them: tens under tens, ones under ones.` });
+    else {
+      if (col.story) st.push({ min: 0.5, say: prompt });
+      st.push({ anim: 'stack', min: 1.4, say: (col.story ? (plus ? `Let's write it as a sum: ${a} plus ${col.c}.` : `Let's write it as a take-away: ${a} take away ${col.c}.`) : (plus ? `${a} plus ${col.c}.` : `${a} take away ${col.c}.`)) + ' Stack them: tens under tens, ones under ones.' });
+    }
+  }
+  if (col.miss) {
+    st.push({ hi: 'ans', min: 1, say: plus ? `Which number goes in the boxes? Count up from ${a} to ${col.total}: tens first, then ones.` : `Which number goes in the boxes? Count down from ${a} to ${col.total}: tens first, then ones.` });
+    return st;
+  }
+  const c = col.c, ct = Math.floor(c / 10), co = c % 10;
+  if (plus) {
+    st.push({ hi: 'ones', min: 1.2, say: `Always start with the ones: ${ao} plus ${co}.` + (col.carry ? ' That makes 10 or more!' : ' That is less than 10, so no carrying.') });
+    if (col.carry) st.push({ hi: 'ones', anim: 'carry', min: 1.6, say: 'So we carry 1 ten over to the tens column.' });
+    st.push({ hi: 'tens', min: 1.2, say: `Then the tens: ${at} plus ${ct}` + (col.carry ? ', plus the 1 we carried.' : '.') });
+  } else {
+    st.push({ hi: 'ones', min: 1.2, say: `Always start with the ones: ${ao} take away ${co}.` + (col.borrow ? ` But ${ao} is smaller than ${co}. We can't take away!` : ` ${ao} is big enough, so no borrowing.`) });
+    if (col.borrow) {
+      st.push({ hi: 'both', anim: 'borrow', min: 2.2, say: `So we borrow 1 ten from the tens. ${at} tens become ${at - 1}, and ${ao} ones become ${ao + 10}.` });
+      st.push({ hi: 'ones', min: 1, say: `Now take away the ones: ${ao + 10} take away ${co}.` });
+      st.push({ hi: 'tens', min: 1, say: `Then the tens: ${at - 1} take away ${ct}.` });
+    } else st.push({ hi: 'tens', min: 1.2, say: `Then the tens: ${at} take away ${ct}.` });
+  }
+  st.push({ hi: 'ans', min: 0.8, say: 'Now you work it out! Type the tens, then the ones.' });
+  return st;
+}
+const easeOut = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+const COL_TENS = '#8EC5FF', COL_ONES = '#FFC48A';
+
 const PAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'go'];
 class PitStop {
   constructor(play) {
@@ -1478,19 +1515,35 @@ class PitStop {
       this.qq = freshQuestion(() => makePuzzle(b, kind), () => makePuzzle(b, pick(['numSeq', 'shapeSeq', 'count', 'biggest'])));
     }
     this.sel = 0; this.wrongPick = -1; this.tries = 0; this.feedback = ''; this.typed = ''; this.pad = 0;
+    this.teaching = false; this.marks = {}; this.hi = null; this.caption = '';
+  }
+  // Walk through the column method; answering is locked until it's done.
+  startTeach(replay) {
+    this.steps = teachSteps(this.q.col, this.q.prompt, replay);
+    if (replay) { delete this.marks.carry; delete this.marks.borrow; }
+    this.teaching = true; this.tStep = -1; this.nextStep();
+  }
+  nextStep() {
+    this.tStep++;
+    const st = this.steps[this.tStep];
+    if (!st) { this.teaching = false; this.hi = null; this.caption = ''; return; }
+    this.tT = 0; this.hi = st.hi || null; this.caption = st.say;
+    if (st.anim) { this.marks[st.anim] = T; if (st.anim !== 'stack') SFX.pop(); }
+    Voice.say(st.say, 'hoot');
   }
   get q() { return this.qq; }
   get entry() { return !!this.q.typed; }
   get wantsDel() { return this.state === 'q' && this.entry; }
   readQ() {
     const q = this.q; let t = q.prompt;
+    if (q.col) { this.startTeach(false); return; }
     const v = q.visual;
     if (v && v.kind === 'seq') t += ' ' + v.items.filter(x => x !== '?').join(', ') + ', and then what?';
     if (v && v.kind === 'shapes') t += ' ' + v.items.filter(Boolean).map(it => (COLOR_NAME[it.color] || '') + ' ' + it.shape).join(', ') + ', and then?';
     if (!this.entry && q.options.every(o => o.text) && !/^\d+$/.test(q.options[0].text)) t += ' Is it ' + q.options.slice(0, -1).map(o => o.text.toLowerCase()).join(', ') + ', or ' + q.options[q.options.length - 1].text.toLowerCase() + '?';
     Voice.say(t, 'hoot'); this.listening = true;
   }
-  get locked() { return (this.state === 'q' || this.state === 'explain') && (this.listening || T < (this.lockUntil || 0)); }
+  get locked() { return (this.state === 'q' || this.state === 'explain') && (this.teaching || this.listening || T < (this.lockUntil || 0)); }
   optRects() { const n = this.q.options.length, w = 236, g = 28, tot = n * w + (n - 1) * g, x0 = (W - tot) / 2; return this.q.options.map((o, k) => ({ x: x0 + k * (w + g), y: 488, w, h: 150 })); }
   padRects() { return PAD.map((k, i) => ({ x: 776 + (i % 3) * 140, y: 186 + Math.floor(i / 3) * 112, w: 124, h: 96 })); }
   onAction(a) {
@@ -1528,6 +1581,7 @@ class PitStop {
     if (Number(this.typed) === this.q.value) { this.correct(); return; }
     SFX.bad(); this.shake = 0.4; this.typed = ''; this.pad = 0;
     if (this.tries >= 2) { this.newOne(); return; }
+    if (this.q.col) { this.feedback = 'Not quite. Watch the steps again, then try!'; this.lockUntil = T + 1; this.startTeach(true); this.caption = 'Not quite. Let\'s look again. ' + this.caption; Voice.say(this.caption, 'hoot'); return; }
     this.feedback = 'Not quite. Hint: ' + this.q.hint + ' Think, then try again!';
     Voice.say('Not quite. ' + this.q.hint + ' Think, then try again.', 'hoot'); this.listening = true; this.lockUntil = T + 3;
   }
@@ -1553,6 +1607,7 @@ class PitStop {
     this.shake = Math.max(0, this.shake - dt);
     if (this.state === 'done') { this.doneT += dt; if (this.doneT < 3 && (this.doneT % 0.7) < dt) FX.launch(rand(150, W - 150), rand(120, 260)); if ((this.doneT % 0.15) < dt) FX.confetti(2); }
     if (this.listening && Voice.done()) this.listening = false;
+    if (this.teaching) { this.tT += dt; if (this.tT >= this.steps[this.tStep].min && Voice.done()) this.nextStep(); }
     if (this.state === 'right') { this.timer -= dt; if (this.timer <= 0 && Voice.done()) { if (this.i < this.tasks.length - 1) { this.i++; this.state = 'q'; this.newQ(); this.readQ(); } else { this.state = 'done'; this.doneT = 0; this.bonus = this.firstTry * 5; SFX.fanfare(false); FX.confetti(70, 80, H - 40, 650); FX.confetti(70, W - 80, H - 40, 650); FX.launch(320, 160); FX.launch(960, 180); setTimeout(() => SFX.cheer(1.4), 450); Voice.say('Fuel tank full! ' + (this.bonus ? `You got ${this.bonus} bonus stars!` : '') + ' Back to the adventure!', 'zippy'); } } }
   }
   finish() { this.play.score += this.bonus || 0; this.play.countdown = 2.2; scene = this.play; }
@@ -1608,6 +1663,104 @@ class PitStop {
     } else if (this.locked) { drawSpeaker(W / 2 - 92, 674, '#FFE88A'); text('Listen…', W / 2 + 10, 676, 26, '#FFE88A', 'center', 700); }
     else text(usingTouch ? 'Tap your answer — only ONE try!' : '◀ ▶ to choose · OK to answer · only ONE try!', W / 2, 676, 26, '#D5DDF2', 'center', 600);
   }
+  // Column layout: tens under tens, ones under ones, answer boxes below the
+  // line (missing-number: boxes in the second row). Carry/borrow animate.
+  drawColumn(q, sx) {
+    const col = q.col, cx = 380, right = this.state === 'right', explain = this.state === 'explain';
+    const tensX = cx - 40, onesX = cx + 100, opX = cx - 190, FS = 96;
+    const story = col.story;
+    // the question at the top (story text, or the sum written in a line)
+    let promptY = 150, top = 0;
+    const topXs = {};
+    if (story) {
+      const pl = wrapLines(q.prompt, 560, 25, 600); const y0 = 132;
+      pl.forEach((ln, k) => text(ln, cx + 50, y0 + k * 30, 25, '#FFFFFF', 'center', 600));
+      top = y0 + pl.length * 30 - 150;
+    } else {
+      text(q.prompt, cx, promptY, 50, '#D5DDF2', 'center', 700);
+      // where each digit sits in the line, so it can fly down into the column
+      ctx.font = font(50, 700); const w = ctx.measureText(q.prompt).width, x0 = cx - w / 2;
+      const at = (i) => x0 + ctx.measureText(q.prompt.slice(0, i)).width + ctx.measureText(q.prompt[i]).width / 2;
+      const ia = 0, ib = col.miss ? q.prompt.lastIndexOf(String(col.total)) : q.prompt.indexOf(String(col.c), 3);
+      topXs.a = [at(ia), at(ia + 1)]; topXs.b = [at(ib), at(ib + 1)];
+    }
+    const labY = 202 + top, carryY = 248 + top, r1 = 325 + top, r2 = col.miss ? 432 + top : 422 + top;
+    const lineY = col.miss ? 492 + top : 477 + top, boxY = lineY + 14, boxH = story ? 92 : 112;
+    const stackT = this.marks.stack === undefined ? -1 : T - this.marks.stack;
+    if (stackT < 0) { this.drawColCaption(cx, boxY + boxH + 18); return; }
+    const p1 = easeOut(stackT / 0.7), p2 = easeOut((stackT - 0.45) / 0.7), p3 = clamp((stackT - 1) / 0.4, 0, 1);
+    // tens / ones column bands + labels
+    ctx.globalAlpha = p3;
+    const band = (x, c, on) => { fillRR(x - 62, labY - 22, 124, lineY + 6 - (labY - 22), 22, on ? 'rgba(255,214,90,0.30)' : 'rgba(255,255,255,0.06)'); if (on) { rr(x - 62, labY - 22, 124, lineY + 6 - (labY - 22), 22); ctx.strokeStyle = '#FFD65A'; ctx.lineWidth = 4; ctx.stroke(); } text(x === tensX ? 'tens' : 'ones', x, labY, 24, c, 'center', 700); };
+    band(tensX, COL_TENS, this.hi === 'tens' || this.hi === 'both');
+    band(onesX, COL_ONES, this.hi === 'ones' || this.hi === 'both');
+    ctx.globalAlpha = 1;
+    // a digit flying from the written sum (or dropping in, for stories)
+    const fly = (d, k, row, y, p, colr) => {
+      const tx = k === 0 ? tensX : onesX;
+      const fx = topXs[row] ? topXs[row][k] : tx, fy = topXs[row] ? promptY : y - 70;
+      ctx.globalAlpha = topXs[row] ? clamp(p * 3, 0, 1) : p;
+      text(String(d), fx + (tx - fx) * p, fy + (y - fy) * p, 50 + (FS - 50) * p, colr, 'center', 700);
+      ctx.globalAlpha = 1;
+    };
+    const A = [Math.floor(col.a / 10), col.a % 10];
+    const tensStruck = this.marks.borrow !== undefined && T - this.marks.borrow > 0.35;
+    const onesStruck = this.marks.borrow !== undefined && T - this.marks.borrow > 1.3;
+    if (p1 > 0) { fly(A[0], 0, 'a', r1, p1, tensStruck ? '#9AA3BD' : COL_TENS); fly(A[1], 1, 'a', r1, p1, onesStruck ? '#9AA3BD' : COL_ONES); }
+    const ansBoxes = (y, h) => {
+      for (let i = 0; i < 2; i++) {
+        const x = (i === 0 ? tensX : onesX) - 58 + sx;
+        const on = this.hi === 'ans' && (T % 0.8) < 0.5;
+        if (on) fillRR(x - 7, y - 7, 130, h + 14, 30, '#FFD65A');
+        fillRR(x, y, 116, h, 24, right ? '#2E9C5B' : explain ? '#5A668A' : '#FFFFFF');
+        const d = explain ? '' : (this.typed[i] || '');
+        if (d) text(d, x + 58, y + h / 2 + 4, 84, right ? '#FFFFFF' : INK, 'center', 700);
+        else if (!explain && !this.locked && i === this.typed.length && !right && (T % 1) < 0.6) fillRR(x + 28, y + h - 22, 60, 10, 5, '#FFC21A');
+      }
+    };
+    if (p2 > 0) {
+      ctx.globalAlpha = p2; text(col.op === '+' ? '+' : '−', opX, col.miss ? r2 : r2, FS, '#FFFFFF', 'center', 700); ctx.globalAlpha = 1;
+      if (col.miss) { ctx.globalAlpha = p2; ansBoxes(r2 - 52, 104); ctx.globalAlpha = 1; }
+      else { const C = [Math.floor(col.c / 10), col.c % 10]; fly(C[0], 0, 'b', r2, p2, COL_TENS); fly(C[1], 1, 'b', r2, p2, COL_ONES); }
+    }
+    if (p3 > 0) {
+      ctx.globalAlpha = p3;
+      line(opX - 50, lineY, onesX + 66, lineY, '#FFFFFF', 7);
+      if (col.miss) { const Tt = [Math.floor(col.total / 10), col.total % 10]; text(String(Tt[0]), tensX, boxY + 50, FS, COL_TENS, 'center', 700); text(String(Tt[1]), onesX, boxY + 50, FS, COL_ONES, 'center', 700); }
+      else ansBoxes(boxY, boxH);
+      ctx.globalAlpha = 1;
+    }
+    // carry: a "1 ten" bubble hops from the ones up over the tens column
+    if (this.marks.carry !== undefined) {
+      const t = (T - this.marks.carry) / 1.1, p = easeOut(t);
+      const x = onesX + (tensX - onesX) * p, y = (r1 - 10) + (carryY - (r1 - 10)) * p - Math.sin(Math.PI * clamp(t, 0, 1)) * 90;
+      circle(x, y, 25, '#FFD65A'); text('1', x, y + 2, 34, INK, 'center', 700);
+      if (t < 1.3) text('1 ten', x + 58, y, 24, '#FFD65A', 'left', 700);
+    }
+    // borrow: cross out the tens digit, write one less; a ten moves to the ones
+    if (this.marks.borrow !== undefined) {
+      const t = T - this.marks.borrow;
+      const strike = (x, p) => line(x - 34, r1 + 28, x - 34 + 68 * p, r1 + 28 - 60 * p, '#FF6B5A', 8);
+      if (t > 0) strike(tensX, clamp(t / 0.3, 0, 1));
+      if (t > 0.35) { const p = easeOut((t - 0.35) / 0.3); ctx.globalAlpha = p; text(String(A[0] - 1), tensX, carryY + (1 - p) * 20, 46, '#FFD65A', 'center', 700); ctx.globalAlpha = 1; }
+      if (t > 0.6 && t < 1.4) { const p = easeOut((t - 0.6) / 0.7), x = tensX + (onesX - tensX) * p, y = carryY - Math.sin(Math.PI * p) * 50; fillRR(x - 32, y - 20, 64, 40, 20, '#FFD65A'); text('10', x, y + 2, 28, INK, 'center', 700); text('1 ten', x, y - 36, 22, '#FFD65A', 'center', 700); }
+      if (t > 1.3) strike(onesX, clamp((t - 1.3) / 0.3, 0, 1));
+      if (t > 1.5) { const p = easeOut((t - 1.5) / 0.3); ctx.globalAlpha = p; text(String(A[1] + 10), onesX, carryY + (1 - p) * 20, 46, '#FFD65A', 'center', 700); ctx.globalAlpha = 1; }
+    }
+    this.drawColCaption(cx, (col.miss ? boxY + 100 : boxY + boxH) + 12);
+  }
+  // Hoot's words for the current step, or the feedback / what to do next.
+  drawColCaption(cx, y) {
+    const right = this.state === 'right', explain = this.state === 'explain';
+    const msg = this.teaching ? this.caption : this.feedback;
+    if (msg) {
+      const fl = wrapLines(msg, 680, 23, 700), h = 16 + fl.length * 29, fy = Math.min(y, H - 10 - h);
+      fillRR(cx - 360, fy, 720, h, 20, right ? '#2E9C5B' : '#FFFFFF');
+      fl.forEach((ln, k) => text(ln, cx, fy + 23 + k * 29, 23, right ? '#FFFFFF' : INK, 'center', 700));
+      if (this.teaching) drawSpeaker(cx + 340, fy - 20, '#FFE88A');
+      if (explain && !this.locked && (T % 1) < 0.7) text(usingTouch ? 'Tap ▶ for a new one' : 'OK ▶ for a new one', W - 30, H - 20, 24, '#FFE88A', 'right', 700);
+    } else if (!this.locked) text(usingTouch ? 'Tap the numbers, then ✓' : 'Type the answer, or use ◀ ▶ ▲ ▼ and OK', cx, Math.min(y + 20, H - 24), 24, '#D5DDF2', 'center', 600);
+  }
   drawVisual(v) {
     if (v.kind === 'seq' || v.kind === 'shapes') {
       const n = v.items.length, bw = v.kind === 'seq' ? 140 : 110, g = 18, tot = n * bw + (n - 1) * g, x0 = (W - tot) / 2;
@@ -1625,6 +1778,7 @@ class PitStop {
     }
   }
   drawEntry(q, sx) {
+    if (q.col) { this.drawColumn(q, sx); this.drawPad(); return; }
     const cx = 390, right = this.state === 'right', explain = this.state === 'explain';
     // number puzzles: show the picture across the top-left
     if (q.visual) {
@@ -1651,6 +1805,9 @@ class PitStop {
       if (explain && !this.locked && (T % 1) < 0.7) text(usingTouch ? 'Tap ▶ for a new one' : 'OK ▶ for a new one', cx, Math.min(H - 16, fy + h + 24), 24, '#FFE88A', 'center', 700);
     } else if (this.locked) { drawSpeaker(cx - 92, 538, '#FFE88A'); text('Listen…', cx + 10, 540, 26, '#FFE88A', 'center', 700); }
     else text(usingTouch ? 'Tap the numbers, then ✓' : 'Type the answer, or use ◀ ▶ ▲ ▼ and OK', cx, 540, 26, '#D5DDF2', 'center', 600);
+    this.drawPad();
+  }
+  drawPad() {
     this.padRects().forEach((r, i) => {
       const k = PAD[i], sel = i === this.pad && this.state === 'q';
       ctx.globalAlpha = this.state === 'q' && !this.locked ? 1 : 0.5;
