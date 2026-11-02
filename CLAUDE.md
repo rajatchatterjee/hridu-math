@@ -215,6 +215,10 @@ rejects as a downgrade.
   full!" gets fireworks, confetti and a fanfare.
 
 ## History
+- 2026-11-02: Every typed answer (two-step sums, number puzzles too, not just
+  column sums) uses labelled tens + ones boxes; starts on ones, any order, works
+  with the remote (◀ from the pad's left column picks a box). One-digit puzzle
+  answers can leave tens empty.
 - 2026-11-01: Column sums: fill the ones or tens box in any order.
 - 2026-11-01: Pit-stop sums shown in columns with an animated, voiced
   walkthrough of carrying and borrowing (method only, never the answer).
