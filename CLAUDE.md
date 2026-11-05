@@ -215,6 +215,10 @@ rejects as a downgrade.
   full!" gets fireworks, confetti and a fanfare.
 
 ## History
+- 2026-11-05: Edges made kinder in fly/space/dive/rescue levels (Rajat: Avalanche
+  Flight too hard): thinner danger zone, soft push back out, a heart is lost only
+  after lingering ~1.3 s (was 0.45 s); wind halved and fades near the edges so it
+  never shoves Hridu into one. Camping at an edge still costs hearts.
 - 2026-11-02: Every typed answer (two-step sums, number puzzles too, not just
   column sums) uses labelled tens + ones boxes; starts on ones, any order, works
   with the remote (◀ from the pad's left column picks a box). One-digit puzzle
